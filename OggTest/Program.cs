@@ -36,6 +36,7 @@ namespace OggTest
                     else if (packetContents.StartsWith("OpusTags"))
                     {
                         Console.WriteLine("Got tags: " + packetContents);
+                        OpusTagsPacket.Parse(buf, buf.Length);
                     }
                     else
                     {

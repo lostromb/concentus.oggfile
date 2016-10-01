@@ -47,6 +47,8 @@
     <Compile Include="OggPacket.cs" />
     <Compile Include="OggPacketReader.cs" />
     <Compile Include="OggPageFlags.cs" />
+    <Compile Include="OpusHeadPacket.cs" />
+    <Compile Include="OpusTagsPacket.cs" />
     <Compile Include="ParameterChangeEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StreamReadBuffer.cs" />
