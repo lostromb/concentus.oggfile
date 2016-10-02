@@ -50,7 +50,7 @@ namespace Concentus.Oggfile
         /// <param name="inputSampleRate">The sample rate to interpret the input as</param>
         /// <param name="stereoEncoding">If true, assume input PCM is interleaved stereo</param>
         /// <param name="outputStream">A base stream to accept the encoded ogg file output</param>
-        /// <param name="fileTags">A set of tags to include in the encoded file</param>
+        /// <param name="fileTags">(optional) A set of tags to include in the encoded file</param>
         public OpusOggWriteStream(OpusEncoder encoder, int inputSampleRate, bool stereoEncoding, Stream outputStream, OpusTags fileTags = null)
         {
             _encoder = encoder;
@@ -75,15 +75,16 @@ namespace Concentus.Oggfile
 
         /// <summary>
         /// Writes a buffer of PCM audio samples to the encoder and packetizer. Runs Opus encoding and potentially outputs one or more pages to the underlying Ogg stream.
+        /// You can write any non-zero number of samples that you want here; there are no restrictions on length or packet boundaries
         /// </summary>
-        /// <param name="data">The audio samples to write</param>
+        /// <param name="data">The audio samples to write. If stereo, this will be interleaved</param>
         /// <param name="offset">The offset to use when reading data</param>
-        /// <param name="count">The amount of PCM data to write (if data is stereo, remember that this is 2x the number of samples per frame)</param>
+        /// <param name="count">The amount of PCM data to write</param>
         public void WriteSamples(short[] data, int offset, int count)
         {
             if (_finalized)
             {
-                throw new InvalidOperationException("Cannot write new samples to Oggfile, the output stream is already closed!");
+                throw new InvalidOperationException("Cannot write new samples to Ogg file, the output stream is already closed!");
             }
 
             // Try and fill the opus frame
@@ -176,7 +177,7 @@ namespace Concentus.Oggfile
             _payloadIndex += WriteValueToByteBuffer("OpusHead", _currentPayload, _payloadIndex);
             _currentPayload[_payloadIndex++] = 0x01; // Version number
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
-            short preskip = 0x0138;
+            short preskip = 0;
             _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip. 3840 samples is "recommended"
             _payloadIndex += WriteValueToByteBuffer(_inputSampleRate, _currentPayload, _payloadIndex); //Input sample rate
             short outputGain = 0;
@@ -199,6 +200,11 @@ namespace Concentus.Oggfile
             if (tags == null)
             {
                 tags = new OpusTags();
+            }
+
+            if (string.IsNullOrEmpty(tags.Comment))
+            {
+                tags.Comment = "Concentus.OggFile 0.0.3";
             }
 
             if (_payloadIndex != 0)
@@ -257,7 +263,7 @@ namespace Concentus.Oggfile
             _payloadIndex = 0;
             _lacingTableCount = 0;
 
-            // "OggS"
+            // Page begin keyword
             _headerIndex += WriteValueToByteBuffer("OggS", _currentHeader, _headerIndex);
             // Stream version 0
             _currentHeader[_headerIndex++] = 0x0;

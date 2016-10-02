@@ -19,13 +19,13 @@
   <Import Project="$(NuProjPath)\NuProj.props" Condition="Exists('$(NuProjPath)\NuProj.props')" />
   <PropertyGroup Label="Configuration">
     <Id>Concentus.OggFile</Id>
-    <Version>0.0.2</Version>
+    <Version>0.0.3</Version>
     <Title>Concentus.OggFile</Title>
     <Authors>Logan Stromberg</Authors>
     <Owners>Logan Stromberg</Owners>
     <Summary>OggOpus file handlers utilizing the Concentus codec</Summary>
     <Description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally.</Description>
-    <ReleaseNotes>v0.0.2 Experimental release of Oggfile reader and writer classes</ReleaseNotes>
+    <ReleaseNotes>v0.0.3 Experimental release of Oggfile reader and writer classes</ReleaseNotes>
     <ProjectUrl>https://github.com/lostromb/concentus.oggfile</ProjectUrl>
     <LicenseUrl>https://opensource.org/licenses/MS-PL</LicenseUrl>
     <Copyright>Copyright © Logan Stromberg, Andrew Ward</Copyright>

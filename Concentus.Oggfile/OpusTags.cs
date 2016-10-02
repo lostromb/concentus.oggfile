@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace Concentus.Oggfile
 {
+    /// <summary>
+    /// A set of tags that are read from / written to an Opus ogg file
+    /// </summary>
     public class OpusTags
     {
         private string _comment = string.Empty;
@@ -35,7 +38,7 @@ namespace Concentus.Oggfile
             }
         }
 
-        public static OpusTags ParsePacket(byte[] packet, int packetLength)
+        internal static OpusTags ParsePacket(byte[] packet, int packetLength)
         {
             if (packetLength < 8)
                 return null;
