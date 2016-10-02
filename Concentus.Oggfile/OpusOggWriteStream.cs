@@ -15,9 +15,13 @@ namespace Concentus.Oggfile
     /// </summary>
     public class OpusOggWriteStream
     {
+        private const int FRAME_SIZE_MS = 20;
+
         private OpusEncoder _encoder;
         private Stream _outputStream;
         private Crc crc;
+        private int _inputSampleRate;
+        private int _inputChannels;
 
         private short[] _opusFrame;
         private int _opusFrameSamples;
@@ -49,11 +53,19 @@ namespace Concentus.Oggfile
         public OpusOggWriteStream(OpusEncoder encoder, int inputSampleRate, bool stereoEncoding, Stream outputStream, OpusTags fileTags = null)
         {
             _encoder = encoder;
+
+            if (_encoder.UseDTX)
+            {
+                throw new ArgumentException("DTX is not currently supported in Ogg streams");
+            }
+
+            _inputSampleRate = inputSampleRate;
+            _inputChannels = (stereoEncoding ? 2 : 1);
             _outputStream = outputStream;
             _opusFrameIndex = 0;
             _granulePosition = 0;
-            _opusFrameSamples = (int)((long)inputSampleRate * 20 / 1000);
-            _opusFrame = new short[_opusFrameSamples * (stereoEncoding ? 2 : 1)];
+            _opusFrameSamples = (int)((long)inputSampleRate * FRAME_SIZE_MS / 1000);
+            _opusFrame = new short[_opusFrameSamples * _inputChannels];
             crc = new Crc();
             BeginNewPage();
             WriteOpusHeadPage();
@@ -86,7 +98,10 @@ namespace Concentus.Oggfile
                     // Frame is finished. Encode it
                     int packetSize = _encoder.Encode(_opusFrame, 0, _opusFrameSamples, _currentPayload, _payloadIndex, 1275);
                     _payloadIndex += packetSize;
-                    _granulePosition += _opusFrameSamples; // fixme: convert from 48Khz if using another timecode
+
+                    // Opus granules are measured in 48Khz samples. 
+                    // Since the framesize is fixed (20ms) and the sample rate doesn't change, this is basically a constant value
+                    _granulePosition += FRAME_SIZE_MS * 48;
 
                     // And update the lacing values in the header
                     int segmentLength = packetSize;
@@ -122,12 +137,12 @@ namespace Concentus.Oggfile
             int samplesToWrite = _opusFrame.Length - _opusFrameIndex;
             short[] paddingSamples = new short[samplesToWrite];
             WriteSamples(paddingSamples, 0, samplesToWrite);
-
-            // TODO: Set page flag to end of logical stream
-            // _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.EndOfStream;
-
             // Finalize the page if it was not just finalized right then
             FinalizePage();
+
+            // Write a new page that just contains the EndOfStream flag
+            WriteStreamFinishedPage();
+
             // Now close our output
             _outputStream.Flush();
             _outputStream.Dispose();
@@ -135,26 +150,34 @@ namespace Concentus.Oggfile
         }
 
         /// <summary>
+        /// Writes an empty page containing only the EndOfStream flag
+        /// </summary>
+        private void WriteStreamFinishedPage()
+        {
+            // Write one lacing value of 0 length
+            _currentHeader[_headerIndex++] = 0x00;
+            // Increase the segment count
+            _segmentCount++;
+            // Set page flag to start of logical stream
+            _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.EndOfStream;
+            FinalizePage();
+        }
+
+        /// <summary>
         /// Writes the Ogg page for OpusHead, containing encoder information
         /// </summary>
         private void WriteOpusHeadPage()
         {
-            byte[] opusHead = Encoding.UTF8.GetBytes("OpusHead");
-            Array.Copy(opusHead, 0, _currentPayload, _payloadIndex, opusHead.Length);
-            _payloadIndex += opusHead.Length;
-            // FIXME hardcoded values for now
-            _currentPayload[_payloadIndex++] = 0x01;
-            _currentPayload[_payloadIndex++] = 0x02;
-            _currentPayload[_payloadIndex++] = 0x38;
-            _currentPayload[_payloadIndex++] = 0x01;
-            _currentPayload[_payloadIndex++] = 0x80;
-            _currentPayload[_payloadIndex++] = 0xBB;
+            _payloadIndex += WriteValueToByteBuffer("OpusHead", _currentPayload, _payloadIndex);
+            _currentPayload[_payloadIndex++] = 0x01; // Version number
+            _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
+            _currentPayload[_payloadIndex++] = 0x00; // Pre-skip. 3840 samples is "recommended", but here we just use 0
             _currentPayload[_payloadIndex++] = 0x00;
-            _currentPayload[_payloadIndex++] = 0x00;
-            _currentPayload[_payloadIndex++] = 0x00;
-            _currentPayload[_payloadIndex++] = 0x00;
-            _currentPayload[_payloadIndex++] = 0x00;
-            // Write segment data
+            _payloadIndex += WriteValueToByteBuffer(_inputSampleRate, _currentPayload, _payloadIndex); //Input sample rate
+            _currentPayload[_payloadIndex++] = 0x00; // Output gain in Q8
+            _currentPayload[_payloadIndex++] = 0x00; 
+            _currentPayload[_payloadIndex++] = 0x00; // Channel map (0 indicates mono/stereo config)
+            // Write the payload as segment data
             _currentHeader[_headerIndex++] = (byte)_payloadIndex;
             _segmentCount++;
             // Set page flag to start of logical stream
@@ -173,15 +196,33 @@ namespace Concentus.Oggfile
                 tags = new OpusTags();
             }
 
-            byte[] opusHead = Encoding.UTF8.GetBytes("OpusTags");
-            Array.Copy(opusHead, 0, _currentPayload, _payloadIndex, opusHead.Length);
-            _payloadIndex += opusHead.Length;
+            _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
 
-            // Empty tags for now (implement later)
-            for (int c = 0; c < 8; c++)
+            // write comment
+            int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
+            _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+            _payloadIndex += stringLength;
+
+            // capture the location of the tag count field to fill in later
+            int numTagsIndex = _payloadIndex;
+            _payloadIndex += 4;
+
+            // write each tag. skipping empty or invalid ones
+            int tagsWritten = 0;
+            foreach (var kvp in tags.Fields)
             {
-                _currentPayload[_payloadIndex++] = 0x00;
+                if (string.IsNullOrEmpty(kvp.Key) || string.IsNullOrEmpty(kvp.Value))
+                    continue;
+
+                string tag = kvp.Key + "=" + kvp.Value;
+                stringLength = WriteValueToByteBuffer(tag, _currentPayload, _payloadIndex + 4);
+                _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+                _payloadIndex += stringLength;
+                tagsWritten++;
             }
+
+            // Write actual tag count
+            WriteValueToByteBuffer(tagsWritten, _currentPayload, numTagsIndex);
 
             // Write segment data
             _currentHeader[_headerIndex++] = (byte)_payloadIndex;
@@ -199,20 +240,17 @@ namespace Concentus.Oggfile
             _segmentCount = 0;
 
             // "OggS"
-            _currentHeader[_headerIndex++] = 0x4f;
-            _currentHeader[_headerIndex++] = 0x67;
-            _currentHeader[_headerIndex++] = 0x67;
-            _currentHeader[_headerIndex++] = 0x53;
+            _headerIndex += WriteValueToByteBuffer("OggS", _currentHeader, _headerIndex);
             // Stream version 0
             _currentHeader[_headerIndex++] = 0x0;
             // Header flags
             _currentHeader[_headerIndex++] = (byte)PageFlags.None;
             // Granule position (for opus, it is the number of 48Khz pcm samples encoded)
-            _headerIndex += WriteValueUsingOggEndianness(_granulePosition, _currentHeader, _headerIndex);
+            _headerIndex += WriteValueToByteBuffer(_granulePosition, _currentHeader, _headerIndex);
             // Logical stream serial number
-            _headerIndex += WriteValueUsingOggEndianness(_logicalStreamId, _currentHeader, _headerIndex);
+            _headerIndex += WriteValueToByteBuffer(_logicalStreamId, _currentHeader, _headerIndex);
             // Page sequence number
-            _headerIndex += WriteValueUsingOggEndianness(_pageCounter, _currentHeader, _headerIndex);
+            _headerIndex += WriteValueToByteBuffer(_pageCounter, _currentHeader, _headerIndex);
             // Checksum is initially zero
             _currentHeader[_headerIndex++] = 0x0;
             _currentHeader[_headerIndex++] = 0x0;
@@ -250,7 +288,7 @@ namespace Concentus.Oggfile
                 {
                     crc.Update(newPage[c]);
                 }
-                WriteValueUsingOggEndianness(crc.Value, newPage, CHECKSUM_HEADER_POS);
+                WriteValueToByteBuffer(crc.Value, newPage, CHECKSUM_HEADER_POS);
                 // Write the page to the stream (TODO: Make sure this operation does not overflow any target stream buffers?)
                 _outputStream.Write(newPage, 0, pageLength);
                 // And reset the page
@@ -258,25 +296,34 @@ namespace Concentus.Oggfile
             }
         }
 
-        private static int WriteValueUsingOggEndianness(int val, byte[] target, int targetOffset)
+        private static int WriteValueToByteBuffer(int val, byte[] target, int targetOffset)
         {
             byte[] bytes = BitConverter.GetBytes(val);
             Array.Copy(bytes, 0, target, targetOffset, 4);
             return 4;
         }
 
-        private static int WriteValueUsingOggEndianness(long val, byte[] target, int targetOffset)
+        private static int WriteValueToByteBuffer(long val, byte[] target, int targetOffset)
         {
             byte[] bytes = BitConverter.GetBytes(val);
             Array.Copy(bytes, 0, target, targetOffset, 8);
             return 8;
         }
 
-        private static int WriteValueUsingOggEndianness(uint val, byte[] target, int targetOffset)
+        private static int WriteValueToByteBuffer(uint val, byte[] target, int targetOffset)
         {
             byte[] bytes = BitConverter.GetBytes(val);
             Array.Copy(bytes, 0, target, targetOffset, 4);
             return 4;
+        }
+
+        private static int WriteValueToByteBuffer(string val, byte[] target, int targetOffset)
+        {
+            if (string.IsNullOrEmpty(val))
+                return 0;
+            byte[] bytes = Encoding.UTF8.GetBytes(val);
+            Array.Copy(bytes, 0, target, targetOffset, bytes.Length);
+            return bytes.Length;
         }
     }
 }

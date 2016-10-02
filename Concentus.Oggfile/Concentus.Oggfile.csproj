@@ -48,6 +48,7 @@
     <Compile Include="OpusHeader.cs" />
     <Compile Include="OpusOggReadStream.cs" />
     <Compile Include="OpusOggWriteStream.cs" />
+    <Compile Include="OpusTagName.cs" />
     <Compile Include="OpusTags.cs" />
     <Compile Include="ParameterChangeEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
