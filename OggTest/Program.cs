@@ -14,14 +14,18 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            using (FileStream fileOut = new FileStream(@"C:\Users\Logan Stromberg\Desktop\Polygon.opus", FileMode.Create))
+            using (FileStream fileOut = new FileStream(@"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus", FileMode.Create))
             {
-                OpusEncoder encoder = OpusEncoder.Create(48000, 1, OpusApplication.OPUS_APPLICATION_AUDIO);
+                OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
                 encoder.Bitrate = 96000;
 
-                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, false, fileOut);
+                OpusTags tags = new OpusTags();
+                tags.Comment = "Encoded by Logan";
+                tags.Fields[OpusTagName.Title] = "Prisencolinensinainciusol";
+                tags.Fields[OpusTagName.Artist] = "Adriano Celetano";
+                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, true, fileOut, tags);
 
-                byte[] allInput = File.ReadAllBytes(@"C:\Users\Logan Stromberg\Desktop\Polygon.raw");
+                byte[] allInput = File.ReadAllBytes(@"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw");
                 short[] samples = BytesToShorts(allInput);
 
                 oggOut.WriteSamples(samples, 0, samples.Length);

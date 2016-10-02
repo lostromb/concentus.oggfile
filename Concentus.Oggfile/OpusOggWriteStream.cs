@@ -26,12 +26,12 @@ namespace Concentus.Oggfile
         private short[] _opusFrame;
         private int _opusFrameSamples;
         private int _opusFrameIndex;
-        private byte[] _currentHeader = new byte[4000];
+        private byte[] _currentHeader = new byte[400];
         private byte[] _currentPayload = new byte[65536];
         private int _headerIndex = 0;
         private int _payloadIndex = 0;
         private int _pageCounter = 0;
-        private int _logicalStreamId = 1;
+        private int _logicalStreamId = 0x21F341AE;
         private long _granulePosition = 0;
         private byte _segmentCount = 0;
         private const int PAGE_FLAGS_POS = 5;
@@ -96,7 +96,7 @@ namespace Concentus.Oggfile
                 if (_opusFrameIndex == _opusFrame.Length)
                 {
                     // Frame is finished. Encode it
-                    int packetSize = _encoder.Encode(_opusFrame, 0, _opusFrameSamples, _currentPayload, _payloadIndex, 1275);
+                    int packetSize = _encoder.Encode(_opusFrame, 0, _opusFrameSamples, _currentPayload, _payloadIndex, _currentPayload.Length - _payloadIndex);
                     _payloadIndex += packetSize;
 
                     // Opus granules are measured in 48Khz samples. 
@@ -171,14 +171,14 @@ namespace Concentus.Oggfile
             _payloadIndex += WriteValueToByteBuffer("OpusHead", _currentPayload, _payloadIndex);
             _currentPayload[_payloadIndex++] = 0x01; // Version number
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
-            _currentPayload[_payloadIndex++] = 0x00; // Pre-skip. 3840 samples is "recommended", but here we just use 0
-            _currentPayload[_payloadIndex++] = 0x00;
+            short preskip = 0x0138;
+            _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip. 3840 samples is "recommended"
             _payloadIndex += WriteValueToByteBuffer(_inputSampleRate, _currentPayload, _payloadIndex); //Input sample rate
-            _currentPayload[_payloadIndex++] = 0x00; // Output gain in Q8
-            _currentPayload[_payloadIndex++] = 0x00; 
+            short outputGain = 0;
+            _payloadIndex += WriteValueToByteBuffer(outputGain, _currentPayload, _payloadIndex); // Output gain in Q8
             _currentPayload[_payloadIndex++] = 0x00; // Channel map (0 indicates mono/stereo config)
             // Write the payload as segment data
-            _currentHeader[_headerIndex++] = (byte)_payloadIndex;
+            _currentHeader[_headerIndex++] = (byte)_payloadIndex; // implicit assumption that this value will always be less than 255
             _segmentCount++;
             // Set page flag to start of logical stream
             _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.BeginningOfStream;
@@ -198,31 +198,35 @@ namespace Concentus.Oggfile
 
             _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
 
-            // write comment
-            int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
-            _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
-            _payloadIndex += stringLength;
-
-            // capture the location of the tag count field to fill in later
-            int numTagsIndex = _payloadIndex;
-            _payloadIndex += 4;
-
-            // write each tag. skipping empty or invalid ones
-            int tagsWritten = 0;
-            foreach (var kvp in tags.Fields)
+            for (int c = 0; c < 8; c++)
             {
-                if (string.IsNullOrEmpty(kvp.Key) || string.IsNullOrEmpty(kvp.Value))
-                    continue;
-
-                string tag = kvp.Key + "=" + kvp.Value;
-                stringLength = WriteValueToByteBuffer(tag, _currentPayload, _payloadIndex + 4);
-                _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
-                _payloadIndex += stringLength;
-                tagsWritten++;
+                _currentPayload[_payloadIndex++] = 0x00;
             }
+            //// write comment
+            //int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
+            //_payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+            //_payloadIndex += stringLength;
 
-            // Write actual tag count
-            WriteValueToByteBuffer(tagsWritten, _currentPayload, numTagsIndex);
+            //// capture the location of the tag count field to fill in later
+            //int numTagsIndex = _payloadIndex;
+            //_payloadIndex += 4;
+
+            //// write each tag. skipping empty or invalid ones
+            //int tagsWritten = 0;
+            //foreach (var kvp in tags.Fields)
+            //{
+            //    if (string.IsNullOrEmpty(kvp.Key) || string.IsNullOrEmpty(kvp.Value))
+            //        continue;
+
+            //    string tag = kvp.Key + "=" + kvp.Value;
+            //    stringLength = WriteValueToByteBuffer(tag, _currentPayload, _payloadIndex + 4);
+            //    _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+            //    _payloadIndex += stringLength;
+            //    tagsWritten++;
+            //}
+
+            //// Write actual tag count
+            //WriteValueToByteBuffer(tagsWritten, _currentPayload, numTagsIndex);
 
             // Write segment data
             _currentHeader[_headerIndex++] = (byte)_payloadIndex;
@@ -315,6 +319,13 @@ namespace Concentus.Oggfile
             byte[] bytes = BitConverter.GetBytes(val);
             Array.Copy(bytes, 0, target, targetOffset, 4);
             return 4;
+        }
+
+        private static int WriteValueToByteBuffer(short val, byte[] target, int targetOffset)
+        {
+            byte[] bytes = BitConverter.GetBytes(val);
+            Array.Copy(bytes, 0, target, targetOffset, 2);
+            return 2;
         }
 
         private static int WriteValueToByteBuffer(string val, byte[] target, int targetOffset)
