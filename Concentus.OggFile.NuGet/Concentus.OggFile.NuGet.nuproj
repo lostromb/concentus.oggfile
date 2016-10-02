@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|AnyCPU">
+      <Configuration>Debug</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|AnyCPU">
+      <Configuration>Release</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>1caae15c-f749-44d1-a78b-bb606162eef2</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup>
+    <NuProjPath Condition=" '$(NuProjPath)' == '' ">$(MSBuildExtensionsPath)\NuProj\</NuProjPath>
+  </PropertyGroup>
+  <Import Project="$(NuProjPath)\NuProj.props" Condition="Exists('$(NuProjPath)\NuProj.props')" />
+  <PropertyGroup Label="Configuration">
+    <Id>Concentus.OggFile</Id>
+    <Version>0.0.1</Version>
+    <Title>Concentus.OggFile</Title>
+    <Authors>Logan Stromberg</Authors>
+    <Owners>Logan Stromberg</Owners>
+    <Summary>OggOpus file parser utilizing the Concentus codec</Summary>
+    <Description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally.</Description>
+    <ReleaseNotes>v0.0.1 Experimental release</ReleaseNotes>
+    <ProjectUrl>https://github.com/lostromb/concentus.oggfile</ProjectUrl>
+    <LicenseUrl>https://opensource.org/licenses/MS-PL</LicenseUrl>
+    <Copyright>Copyright © Logan Stromberg, Andrew Ward</Copyright>
+    <Tags>Concentus Opus Ogg Audio</Tags>
+    <IconUrl>http://durandal.dnsalias.net/imgur/concentus.png</IconUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="Readme.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Concentus.Oggfile\Concentus.Oggfile.csproj" />
+  </ItemGroup>
+  <Import Project="$(NuProjPath)\NuProj.targets" />
+</Project>

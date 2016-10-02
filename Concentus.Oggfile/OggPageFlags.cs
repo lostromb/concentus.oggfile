@@ -10,7 +10,7 @@ using System;
 namespace Concentus.Oggfile
 {
     [Flags]
-    enum PageFlags
+    internal enum PageFlags
     {
         None = 0,
         ContinuesPacket = 1,

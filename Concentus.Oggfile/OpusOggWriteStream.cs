@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Concentus.Oggfile
 {
-    public class OpusOggWriteStream
+    internal class OpusOggWriteStream
     {
         private OpusEncoder _encoder;
         private Stream _outputStream;

@@ -14,7 +14,7 @@ namespace Concentus.Oggfile
     /// <summary>
     /// Provides an <see cref="IContainerReader"/> implementation for basic Ogg files.
     /// </summary>
-    public class OggContainerReader : IContainerReader
+    internal class OggContainerReader : IContainerReader
     {
         Crc _crc = new Crc();
         BufferedReadStream _stream;

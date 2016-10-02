@@ -14,7 +14,7 @@ namespace Concentus.Oggfile
     /// <summary>
     /// A thread-safe, read-only, buffering stream wrapper.
     /// </summary>
-    partial class BufferedReadStream : Stream
+    internal partial class BufferedReadStream : Stream
     {
         const int DEFAULT_INITIAL_SIZE = 32768; // 32KB  (1/2 full page)
         const int DEFAULT_MAX_SIZE = 262144;    // 256KB (4 full pages)

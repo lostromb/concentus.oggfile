@@ -13,7 +13,7 @@ using System.IO;
 
 namespace Concentus.Oggfile
 {
-    class Packet : DataPacket
+    internal class Packet : DataPacket
     {
         long _offset;                       // 8
         int _length;                        // 4

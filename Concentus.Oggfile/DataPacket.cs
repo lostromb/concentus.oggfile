@@ -14,7 +14,7 @@ namespace Concentus.Oggfile
     /// <summary>
     /// A single data packet from a logical Vorbis stream.
     /// </summary>
-    public abstract class DataPacket
+    internal abstract class DataPacket
     {
         ulong _bitBucket;           // 8
         int _bitCount;              // 4

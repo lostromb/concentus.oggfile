@@ -12,7 +12,7 @@ namespace Concentus.Oggfile
     /// <summary>
     /// Event data for when a new logical stream is found in a container.
     /// </summary>
-    public class NewStreamEventArgs : EventArgs
+    internal class NewStreamEventArgs : EventArgs
     {
         /// <summary>
         /// Creates a new instance of <see cref="NewStreamEventArgs"/> with the specified <see cref="IPacketProvider"/>.

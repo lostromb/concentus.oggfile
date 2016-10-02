@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Concentus.Oggfile
 {
-    internal class OpusHeadPacket
+    internal class OpusHeader
     {
         byte version;
         byte channel_count;

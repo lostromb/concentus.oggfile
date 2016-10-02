@@ -15,7 +15,7 @@ namespace Concentus.Oggfile
     /// <summary>
     /// Event data for when a logical stream has a parameter change.
     /// </summary>
-    public class ParameterChangeEventArgs : EventArgs
+    internal class ParameterChangeEventArgs : EventArgs
     {
         /// <summary>
         /// Creates a new instance of <see cref="ParameterChangeEventArgs"/>.

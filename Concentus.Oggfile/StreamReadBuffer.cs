@@ -11,9 +11,9 @@ using System.IO;
 
 namespace Concentus.Oggfile
 {
-    partial class StreamReadBuffer : IDisposable
+    internal partial class StreamReadBuffer : IDisposable
     {
-        class StreamWrapper
+        internal class StreamWrapper
         {
             internal Stream Source;
             internal object LockObject = new object();

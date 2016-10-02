@@ -12,7 +12,7 @@ using System.Text;
 
 namespace Concentus.Oggfile
 {
-    class Crc
+    internal class Crc
     {
         const uint CRC32_POLY = 0x04c11db7;
         static uint[] crcTable = new uint[256];

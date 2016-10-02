@@ -13,9 +13,9 @@ using System.IO;
 namespace Concentus.Oggfile
 {
     [System.Diagnostics.DebuggerTypeProxy(typeof(PacketReader.DebugView))]
-    class PacketReader : IPacketProvider
+    internal class PacketReader : IPacketProvider
     {
-        class DebugView
+        internal class DebugView
         {
             PacketReader _reader;
 
