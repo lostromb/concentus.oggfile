@@ -1,4 +1,5 @@
-﻿using Concentus.Oggfile;
+﻿using Concentus.Enums;
+using Concentus.Oggfile;
 using Concentus.Structs;
 using System;
 using System.Collections.Generic;
@@ -13,17 +14,48 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            using (FileStream fileIn = new FileStream(@"C:\Users\logan\Documents\Visual Studio 2015\Projects\concentus.oggfile\OggTest\Rocket.opus", FileMode.Open))
+            using (FileStream fileOut = new FileStream(@"C:\Users\Logan Stromberg\Desktop\Polygon.opus", FileMode.Create))
             {
-                OpusOggReadStream reader = new OpusOggReadStream(fileIn, 48000, false);
-                OpusTags tags = reader.Tags;
-                while (reader.HasNextPacket)
-                {
-                    short[] packet = reader.DecodeNextPacket();
-                    Console.WriteLine(packet.Length + " samples decoded");
-                }
-                Console.WriteLine("Stream ended");
+                OpusEncoder encoder = OpusEncoder.Create(48000, 1, OpusApplication.OPUS_APPLICATION_AUDIO);
+                encoder.Bitrate = 96000;
+
+                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, false, fileOut);
+
+                byte[] allInput = File.ReadAllBytes(@"C:\Users\Logan Stromberg\Desktop\Polygon.raw");
+                short[] samples = BytesToShorts(allInput);
+
+                oggOut.WriteSamples(samples, 0, samples.Length);
+                oggOut.Finish();
             }
+        }
+
+        /// <summary>
+        /// Converts interleaved byte samples (such as what you get from a capture device)
+        /// into linear short samples (that are much easier to work with)
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static short[] BytesToShorts(byte[] input)
+        {
+            return BytesToShorts(input, 0, input.Length);
+        }
+
+        /// <summary>
+        /// Converts interleaved byte samples (such as what you get from a capture device)
+        /// into linear short samples (that are much easier to work with)
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static short[] BytesToShorts(byte[] input, int offset, int length)
+        {
+            short[] processedValues = new short[length / 2];
+            for (int c = 0; c < processedValues.Length; c++)
+            {
+                processedValues[c] = (short)(((int)input[(c * 2) + offset]) << 0);
+                processedValues[c] += (short)(((int)input[(c * 2) + 1 + offset]) << 8);
+            }
+
+            return processedValues;
         }
     }
 }

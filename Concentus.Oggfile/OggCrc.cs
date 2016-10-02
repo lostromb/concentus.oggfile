@@ -51,5 +51,13 @@ namespace Concentus.Oggfile
         {
             return _crc == checkCrc;
         }
+
+        public uint Value
+        {
+            get
+            {
+                return _crc;
+            }
+        }
     }
 }
