@@ -34,9 +34,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <!-- A reference to the entire .NET Framework is automatically included -->
-  </ItemGroup>
-  <ItemGroup>
     <Compile Include="BufferedReadStream.cs" />
     <Compile Include="DataPacket.cs" />
     <Compile Include="IContainerReader.cs" />
@@ -48,10 +45,21 @@
     <Compile Include="OggPacketReader.cs" />
     <Compile Include="OggPageFlags.cs" />
     <Compile Include="OpusHeadPacket.cs" />
+    <Compile Include="OpusOggReadStream.cs" />
+    <Compile Include="OpusOggWriteStream.cs" />
     <Compile Include="OpusTagsPacket.cs" />
     <Compile Include="ParameterChangeEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StreamReadBuffer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Concentus, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Concentus.1.1.2\lib\portable-net45+win+wpa81+wp80\Concentus.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
