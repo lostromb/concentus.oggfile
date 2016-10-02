@@ -1,6 +1,7 @@
 ﻿using Concentus.Structs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -19,7 +20,7 @@ namespace Concentus.Oggfile
 
         private OpusEncoder _encoder;
         private Stream _outputStream;
-        private Crc crc;
+        private Crc _crc;
         private int _inputSampleRate;
         private int _inputChannels;
 
@@ -31,9 +32,9 @@ namespace Concentus.Oggfile
         private int _headerIndex = 0;
         private int _payloadIndex = 0;
         private int _pageCounter = 0;
-        private int _logicalStreamId = 0x21F341AE;
+        private int _logicalStreamId = 1;
         private long _granulePosition = 0;
-        private byte _segmentCount = 0;
+        private byte _lacingTableCount = 0;
         private const int PAGE_FLAGS_POS = 5;
         private const int CHECKSUM_HEADER_POS = 22;
         private const int SEGMENT_COUNT_POS = 26;
@@ -66,7 +67,7 @@ namespace Concentus.Oggfile
             _granulePosition = 0;
             _opusFrameSamples = (int)((long)inputSampleRate * FRAME_SIZE_MS / 1000);
             _opusFrame = new short[_opusFrameSamples * _inputChannels];
-            crc = new Crc();
+            _crc = new Crc();
             BeginNewPage();
             WriteOpusHeadPage();
             WriteOpusTagsPage(fileTags);
@@ -105,18 +106,17 @@ namespace Concentus.Oggfile
 
                     // And update the lacing values in the header
                     int segmentLength = packetSize;
-                    while (segmentLength > 255)
+                    while (segmentLength >= 255)
                     {
                         segmentLength -= 255;
                         _currentHeader[_headerIndex++] = 0xFF;
+                        _lacingTableCount++;
                     }
                     _currentHeader[_headerIndex++] = (byte)segmentLength;
-
-                    // Now increment segment count
-                    _segmentCount++;
+                    _lacingTableCount++;
 
                     // And finalize the page if we need
-                    if (_segmentCount == 255)
+                    if (_lacingTableCount > 240)
                     {
                         FinalizePage();
                     }
@@ -157,7 +157,7 @@ namespace Concentus.Oggfile
             // Write one lacing value of 0 length
             _currentHeader[_headerIndex++] = 0x00;
             // Increase the segment count
-            _segmentCount++;
+            _lacingTableCount++;
             // Set page flag to start of logical stream
             _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.EndOfStream;
             FinalizePage();
@@ -168,6 +168,11 @@ namespace Concentus.Oggfile
         /// </summary>
         private void WriteOpusHeadPage()
         {
+            if (_payloadIndex != 0)
+            {
+                throw new InvalidOperationException("Must begin writing OpusHead on a new page!");
+            }
+
             _payloadIndex += WriteValueToByteBuffer("OpusHead", _currentPayload, _payloadIndex);
             _currentPayload[_payloadIndex++] = 0x01; // Version number
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
@@ -179,7 +184,7 @@ namespace Concentus.Oggfile
             _currentPayload[_payloadIndex++] = 0x00; // Channel map (0 indicates mono/stereo config)
             // Write the payload as segment data
             _currentHeader[_headerIndex++] = (byte)_payloadIndex; // implicit assumption that this value will always be less than 255
-            _segmentCount++;
+            _lacingTableCount++;
             // Set page flag to start of logical stream
             _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.BeginningOfStream;
             FinalizePage();
@@ -196,41 +201,50 @@ namespace Concentus.Oggfile
                 tags = new OpusTags();
             }
 
-            _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
-
-            for (int c = 0; c < 8; c++)
+            if (_payloadIndex != 0)
             {
-                _currentPayload[_payloadIndex++] = 0x00;
+                throw new InvalidOperationException("Must begin writing OpusTags on a new page!");
             }
-            //// write comment
-            //int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
-            //_payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
-            //_payloadIndex += stringLength;
 
-            //// capture the location of the tag count field to fill in later
-            //int numTagsIndex = _payloadIndex;
-            //_payloadIndex += 4;
+            _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
+            
+            // write comment
+            int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
+            _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+            _payloadIndex += stringLength;
 
-            //// write each tag. skipping empty or invalid ones
-            //int tagsWritten = 0;
-            //foreach (var kvp in tags.Fields)
-            //{
-            //    if (string.IsNullOrEmpty(kvp.Key) || string.IsNullOrEmpty(kvp.Value))
-            //        continue;
+            // capture the location of the tag count field to fill in later
+            int numTagsIndex = _payloadIndex;
+            _payloadIndex += 4;
 
-            //    string tag = kvp.Key + "=" + kvp.Value;
-            //    stringLength = WriteValueToByteBuffer(tag, _currentPayload, _payloadIndex + 4);
-            //    _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
-            //    _payloadIndex += stringLength;
-            //    tagsWritten++;
-            //}
+            // write each tag. skipping empty or invalid ones
+            int tagsWritten = 0;
+            foreach (var kvp in tags.Fields)
+            {
+                if (string.IsNullOrEmpty(kvp.Key) || string.IsNullOrEmpty(kvp.Value))
+                    continue;
 
-            //// Write actual tag count
-            //WriteValueToByteBuffer(tagsWritten, _currentPayload, numTagsIndex);
+                string tag = kvp.Key + "=" + kvp.Value;
+                stringLength = WriteValueToByteBuffer(tag, _currentPayload, _payloadIndex + 4);
+                _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
+                _payloadIndex += stringLength;
+                tagsWritten++;
+            }
 
-            // Write segment data
-            _currentHeader[_headerIndex++] = (byte)_payloadIndex;
-            _segmentCount++;
+            // Write actual tag count
+            WriteValueToByteBuffer(tagsWritten, _currentPayload, numTagsIndex);
+
+            // Write segment data, ensuring we can handle tags longer than 255 bytes
+            int tagsSegmentSize = _payloadIndex;
+            while (tagsSegmentSize >= 255)
+            {
+                _currentHeader[_headerIndex++] = 255;
+                _lacingTableCount++;
+                tagsSegmentSize -= 255;
+            }
+            _currentHeader[_headerIndex++] = (byte)tagsSegmentSize;
+            _lacingTableCount++;
+
             FinalizePage();
         }
 
@@ -241,7 +255,7 @@ namespace Concentus.Oggfile
         {
             _headerIndex = 0;
             _payloadIndex = 0;
-            _segmentCount = 0;
+            _lacingTableCount = 0;
 
             // "OggS"
             _headerIndex += WriteValueToByteBuffer("OggS", _currentHeader, _headerIndex);
@@ -261,7 +275,7 @@ namespace Concentus.Oggfile
             _currentHeader[_headerIndex++] = 0x0;
             _currentHeader[_headerIndex++] = 0x0;
             // Number of segments, initially zero
-            _currentHeader[_headerIndex++] = _segmentCount;
+            _currentHeader[_headerIndex++] = _lacingTableCount;
             // Segment table goes after this point, once we have packets in this page
 
             _pageCounter++;
@@ -277,24 +291,25 @@ namespace Concentus.Oggfile
                 throw new InvalidOperationException("Cannot finalize page, the output stream is already closed!");
             }
 
-            if (_segmentCount != 0)
+            if (_lacingTableCount != 0)
             {
                 // Write the final segment count to the header
-                _currentHeader[SEGMENT_COUNT_POS] = _segmentCount;
-                // Build the complete page from the separate buffers
-                int pageLength = _headerIndex + _payloadIndex;
-                byte[] newPage = new byte[pageLength];
-                Array.Copy(_currentHeader, 0, newPage, 0, _headerIndex);
-                Array.Copy(_currentPayload, 0, newPage, _headerIndex, _payloadIndex);
+                _currentHeader[SEGMENT_COUNT_POS] = _lacingTableCount;
                 // Calculate CRC and update the header
-                crc.Reset();
-                for (int c = 0; c < pageLength; c++)
+                _crc.Reset();
+                for (int c = 0; c < _headerIndex; c++)
                 {
-                    crc.Update(newPage[c]);
+                    _crc.Update(_currentHeader[c]);
                 }
-                WriteValueToByteBuffer(crc.Value, newPage, CHECKSUM_HEADER_POS);
+                for (int c = 0; c < _payloadIndex; c++)
+                {
+                    _crc.Update(_currentPayload[c]);
+                }
+                //Debug.WriteLine("Writing CRC " + _crc.Value);
+                WriteValueToByteBuffer(_crc.Value, _currentHeader, CHECKSUM_HEADER_POS);
                 // Write the page to the stream (TODO: Make sure this operation does not overflow any target stream buffers?)
-                _outputStream.Write(newPage, 0, pageLength);
+                _outputStream.Write(_currentHeader, 0, _headerIndex);
+                _outputStream.Write(_currentPayload, 0, _payloadIndex);
                 // And reset the page
                 BeginNewPage();
             }

@@ -14,7 +14,10 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            using (FileStream fileOut = new FileStream(@"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus", FileMode.Create))
+            string opusfile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus";
+            string rawFile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw";
+            string rawFile2 = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol_out.raw";
+            using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
             {
                 OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
                 encoder.Bitrate = 96000;
@@ -25,11 +28,28 @@ namespace OggTest
                 tags.Fields[OpusTagName.Artist] = "Adriano Celetano";
                 OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, true, fileOut, tags);
 
-                byte[] allInput = File.ReadAllBytes(@"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw");
+                byte[] allInput = File.ReadAllBytes(rawFile);
                 short[] samples = BytesToShorts(allInput);
 
                 oggOut.WriteSamples(samples, 0, samples.Length);
                 oggOut.Finish();
+            }
+
+            using (FileStream fileIn = new FileStream(opusfile, FileMode.Open))
+            {
+                using (FileStream fileOut = new FileStream(rawFile2, FileMode.Create))
+                {
+                    OpusOggReadStream oggIn = new OpusOggReadStream(fileIn, 48000, true);
+                    while (oggIn.HasNextPacket)
+                    {
+                        short[] packet = oggIn.DecodeNextPacket();
+                        if (packet != null)
+                        {
+                            byte[] binary = ShortsToBytes(packet);
+                            fileOut.Write(binary, 0, binary.Length);
+                        }
+                    }
+                }
             }
         }
 
@@ -60,6 +80,42 @@ namespace OggTest
             }
 
             return processedValues;
+        }
+
+        /// <summary>
+        /// Converts linear short samples into interleaved byte samples, for writing to a file, waveout device, etc.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static byte[] ShortsToBytes(short[] input)
+        {
+            return ShortsToBytes(input, 0, input.Length);
+        }
+
+        /// <summary>
+        /// Converts linear short samples into interleaved byte samples, for writing to a file, waveout device, etc.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static byte[] ShortsToBytes(short[] input, int in_offset, int samples)
+        {
+            byte[] processedValues = new byte[samples * 2];
+            ShortsToBytes(input, in_offset, processedValues, 0, samples);
+            return processedValues;
+        }
+
+        /// <summary>
+        /// Converts linear short samples into interleaved byte samples, for writing to a file, waveout device, etc.
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
+        public static void ShortsToBytes(short[] input, int in_offset, byte[] output, int out_offset, int samples)
+        {
+            for (int c = 0; c < samples; c++)
+            {
+                output[(c * 2) + out_offset] = (byte)(input[c + in_offset] & 0xFF);
+                output[(c * 2) + out_offset + 1] = (byte)((input[c + in_offset] >> 8) & 0xFF);
+            }
         }
     }
 }

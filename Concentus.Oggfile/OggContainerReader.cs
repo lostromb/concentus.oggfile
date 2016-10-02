@@ -7,6 +7,7 @@
  ***************************************************************************/
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 
 namespace Concentus.Oggfile
@@ -39,7 +40,7 @@ namespace Concentus.Oggfile
         /// Event raised when a new logical stream is found in the container.
         /// </summary>
         public event EventHandler<NewStreamEventArgs> NewStream;
-        
+
         /// <summary>
         /// Creates a new instance with the specified stream.  Optionally sets to close the stream when disposed.
         /// </summary>
@@ -212,10 +213,18 @@ namespace Concentus.Oggfile
             if (_stream.Read(_readBuffer, 0, 27) != 27) return null;
 
             // capture signature ("OggS")
-            if (_readBuffer[0] != 0x4f || _readBuffer[1] != 0x67 || _readBuffer[2] != 0x67 || _readBuffer[3] != 0x53) return null;
+            if (_readBuffer[0] != 0x4f || _readBuffer[1] != 0x67 || _readBuffer[2] != 0x67 || _readBuffer[3] != 0x53)
+            {
+                Debug.WriteLine("No OggS signature found in header");
+                return null;
+            }
 
             // check the stream version
-            if (_readBuffer[4] != 0) return null;
+            if (_readBuffer[4] != 0)
+            {
+                Debug.WriteLine("Ogg stream version does not match expected value 0");
+                return null;
+            }
 
             // start populating the header
             var hdr = new PageHeader();
@@ -249,7 +258,11 @@ namespace Concentus.Oggfile
 
             // figure out the length of the page
             var segCnt = (int)_readBuffer[26];
-            if (_stream.Read(_readBuffer, 0, segCnt) != segCnt) return null;
+            if (_stream.Read(_readBuffer, 0, segCnt) != segCnt)
+            {
+                Debug.WriteLine("Page header reports that there are " + segCnt + " lacing segments, but not that many bytes were found in the buffer!");
+                return null;
+            }
 
             var packetSizes = new List<int>(segCnt);
 
@@ -277,18 +290,26 @@ namespace Concentus.Oggfile
             hdr.DataOffset = position + 27 + segCnt;
 
             // now we have to go through every byte in the page
-            if (_stream.Read(_readBuffer, 0, size) != size) return null;
+            if (_stream.Read(_readBuffer, 0, size) != size)
+            {
+                Debug.WriteLine("Could not read lacing segment from payload: Insufficient bytes");
+                return null;
+            }
+
             for (int i = 0; i < size; i++)
             {
                 _crc.Update(_readBuffer[i]);
             }
 
+            Debug.WriteLine("Calculated CRC for page is " + _crc.Value + " (expecting " + crc + ")");
             if (_crc.Test(crc))
             {
                 _containerBits += 8 * (27 + segCnt);
                 ++_pageCount;
                 return hdr;
             }
+
+            Debug.WriteLine("CRC validation failed for page; assuming it is corrupted");
             return null;
         }
 
@@ -323,11 +344,16 @@ namespace Concentus.Oggfile
                     }
                     else if (b == -1)
                     {
+                        Debug.WriteLine("End of stream reached while looking for next page");
                         return null;
                     }
                     _wasteBits += 8;
                 } while (++cnt < 65536);    // we will only search through 64KB of data to find the next sync marker.  if it can't be found, we have a badly corrupted stream.
-                if (cnt == 65536) return null;
+                if (cnt == 65536)
+                {
+                    Debug.WriteLine("Could not find the next page after searching through 64Kb of data. Assuming the stream is badly corrupted");
+                    return null;
+                }
             }
             hdr.IsResync = isResync;
 
@@ -365,14 +391,14 @@ namespace Concentus.Oggfile
             foreach (var size in hdr.PacketSizes)
             {
                 var packet = new Packet(this, dataOffset, size)
-                    {
-                        PageGranulePosition = hdr.GranulePosition,
-                        IsEndOfStream = isEOS,
-                        PageSequenceNumber = hdr.SequenceNumber,
-                        IsContinued = isContinued,
-                        IsContinuation = isContinuation,
-                        IsResync = isResync,
-                    };
+                {
+                    PageGranulePosition = hdr.GranulePosition,
+                    IsEndOfStream = isEOS,
+                    PageSequenceNumber = hdr.SequenceNumber,
+                    IsContinued = isContinued,
+                    IsContinuation = isContinuation,
+                    IsResync = isResync,
+                };
                 packetReader.AddPacket(packet);
 
                 // update the offset into the stream for each packet
@@ -413,10 +439,10 @@ namespace Concentus.Oggfile
                 {
                     return -1;
                 }
-                
+
                 // if it's in a disposed stream, grab the next page instead
                 if (_disposedStreamSerials.Contains(hdr.StreamSerial)) continue;
-                
+
                 // otherwise, add it
                 if (AddPage(hdr))
                 {
@@ -432,6 +458,7 @@ namespace Concentus.Oggfile
                         }
                     }
                 }
+
                 return hdr.StreamSerial;
             }
         }

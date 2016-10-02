@@ -87,6 +87,11 @@ namespace Concentus.Oggfile
         /// <returns>The decoded audio for the next packet in the stream, or NULL</returns>
         public short[] DecodeNextPacket()
         {
+            if (_nextDataPacket == null || _nextDataPacket.Length == 0)
+            {
+                _endOfStream = true;
+            }
+
             if (_endOfStream)
             {
                 return null;
@@ -121,7 +126,17 @@ namespace Concentus.Oggfile
                 _decoder = OpusDecoder.Create(outputSampleRate, numChannels);
             
                 OggContainerReader reader = new OggContainerReader(_inputStream, true);
-                reader.FindNextStream();
+                if (!reader.Init())
+                {
+                    _lastError = "Could not initialize stream";
+                    return false;
+                }
+
+                //if (!reader.FindNextStream())
+                //{
+                //    _lastError = "Could not find elementary stream";
+                //    return false;
+                //}
                 if (reader.StreamSerials.Length == 0)
                 {
                     _lastError = "Initialization failed: No elementary streams found in input file";
@@ -158,7 +173,7 @@ namespace Concentus.Oggfile
             }
 
             DataPacket packet = _packetProvider.GetNextPacket();
-            if (packet == null)
+            if (packet == null || packet.IsEndOfStream)
             {
                 _endOfStream = true;
                 _nextDataPacket = null;
