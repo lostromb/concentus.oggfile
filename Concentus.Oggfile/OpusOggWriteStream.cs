@@ -32,11 +32,11 @@ namespace Concentus.Oggfile
         private int _headerIndex = 0;
         private int _payloadIndex = 0;
         private int _pageCounter = 0;
-        private int _logicalStreamId = 1;
+        private int _logicalStreamId = 0;
         private long _granulePosition = 0;
         private byte _lacingTableCount = 0;
         private const int PAGE_FLAGS_POS = 5;
-        private const int GRANULE_COUNT_POS = 9;
+        private const int GRANULE_COUNT_POS = 6;
         private const int CHECKSUM_HEADER_POS = 22;
         private const int SEGMENT_COUNT_POS = 26;
         private bool _finalized = false;
@@ -61,6 +61,7 @@ namespace Concentus.Oggfile
                 throw new ArgumentException("DTX is not currently supported in Ogg streams");
             }
 
+            _logicalStreamId = new Random().Next();
             _inputSampleRate = inputSampleRate;
             _inputChannels = (stereoEncoding ? 2 : 1);
             _outputStream = outputStream;
@@ -179,7 +180,7 @@ namespace Concentus.Oggfile
             _currentPayload[_payloadIndex++] = 0x01; // Version number
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
             short preskip = 0;
-            _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip. 3840 samples is "recommended"
+            _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip.
             _payloadIndex += WriteValueToByteBuffer(_inputSampleRate, _currentPayload, _payloadIndex); //Input sample rate
             short outputGain = 0;
             _payloadIndex += WriteValueToByteBuffer(outputGain, _currentPayload, _payloadIndex); // Output gain in Q8
@@ -205,7 +206,7 @@ namespace Concentus.Oggfile
 
             if (string.IsNullOrEmpty(tags.Comment))
             {
-                tags.Comment = "Concentus.OggFile 0.0.3";
+                tags.Comment = "Concentus.OggFile 0.0.4";
             }
 
             if (_payloadIndex != 0)
