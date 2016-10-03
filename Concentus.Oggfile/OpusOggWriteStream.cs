@@ -36,6 +36,7 @@ namespace Concentus.Oggfile
         private long _granulePosition = 0;
         private byte _lacingTableCount = 0;
         private const int PAGE_FLAGS_POS = 5;
+        private const int GRANULE_COUNT_POS = 9;
         private const int CHECKSUM_HEADER_POS = 22;
         private const int SEGMENT_COUNT_POS = 26;
         private bool _finalized = false;
@@ -301,6 +302,8 @@ namespace Concentus.Oggfile
             {
                 // Write the final segment count to the header
                 _currentHeader[SEGMENT_COUNT_POS] = _lacingTableCount;
+                // And the granule count for frames that finished on this page
+                WriteValueToByteBuffer(_granulePosition, _currentHeader, GRANULE_COUNT_POS);
                 // Calculate CRC and update the header
                 _crc.Reset();
                 for (int c = 0; c < _headerIndex; c++)
