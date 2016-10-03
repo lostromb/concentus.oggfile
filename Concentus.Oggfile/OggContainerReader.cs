@@ -301,7 +301,7 @@ namespace Concentus.Oggfile
                 _crc.Update(_readBuffer[i]);
             }
 
-            Debug.WriteLine("Calculated CRC for page is " + _crc.Value + " (expecting " + crc + ")");
+            //Debug.WriteLine("Calculated CRC for page is " + _crc.Value + " (expecting " + crc + ")");
             if (_crc.Test(crc))
             {
                 _containerBits += 8 * (27 + segCnt);
