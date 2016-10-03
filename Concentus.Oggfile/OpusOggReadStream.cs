@@ -28,17 +28,26 @@ namespace Concentus.Oggfile
         /// specified output sample rate and channel count. This will implicitly build an OpusDecoder object
         /// and return the decoded PCM buffers directly.
         /// </summary>
+        /// <param name="decoder">An Opus decoder. If you are reusing an existing decoder, remember to call Reset() on it before
+        /// processing a new stream</param>
         /// <param name="oggFileInput">The input stream for an Ogg formatted .opus file</param>
-        /// <param name="outputSampleRate">The sample rate to decode to. This is not necessarily the sample
-        /// rate the audio was encoded at. Generally there is no reason to change this from the default 48K.
-        /// This must be a valid Opus sample rate (48K / 24K / 16K / 12K / 8K)</param>
-        /// <param name="decodeStereo">If true, decode each packet into interleaved stereo PCM format</param>
-        public OpusOggReadStream(Stream oggFileInput, int outputSampleRate = 48000, bool decodeStereo = true)
+        public OpusOggReadStream(OpusDecoder decoder, Stream oggFileInput)
         {
+            if (decoder == null)
+            {
+                throw new ArgumentNullException("decoder");
+            }
+
+            if (oggFileInput == null)
+            {
+                throw new ArgumentNullException("oggFileInput");
+            }
+
             _inputStream = oggFileInput;
+            _decoder = decoder;
             _endOfStream = false;
-            _decoderChannels = decodeStereo ? 2 : 1;
-            if (!Initialize(outputSampleRate, _decoderChannels))
+            _decoderChannels = decoder.NumChannels;
+            if (!Initialize())
             {
                 _endOfStream = true;
             }
@@ -116,15 +125,11 @@ namespace Concentus.Oggfile
         /// Creates an opus decoder and reads from the ogg stream until a data packet is encountered,
         /// queuing it up for future decoding. Tags are also parsed if they are encountered.
         /// </summary>
-        /// <param name="outputSampleRate">The sample rate to decode to. Must be a valid Opus sample rate</param>
-        /// <param name="numChannels">The number of channels to decode to (1 or 2)</param>
         /// <returns>True if the stream is valid and ready to be decoded</returns>
-        private bool Initialize(int outputSampleRate, int numChannels)
+        private bool Initialize()
         {
             try
             {
-                _decoder = OpusDecoder.Create(outputSampleRate, numChannels);
-            
                 OggContainerReader reader = new OggContainerReader(_inputStream, true);
                 if (!reader.Init())
                 {
@@ -148,11 +153,6 @@ namespace Concentus.Oggfile
                 QueueNextPacket();
 
                 return true;
-            }
-            catch (OpusException e)
-            {
-                _lastError = "Initialization failed: Could not create Opus decoder: " + e.Message;
-                return false;
             }
             catch (Exception e)
             {

@@ -1,4 +1,4 @@
-﻿This is an experimental package for implementing Oggfile parsing support to decode .opus files using Concentus.
+﻿This package implements Oggfile support to encode/decode .opus files using Concentus.
 
 TO ENCODE:
 
@@ -10,7 +10,7 @@ using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
     OpusTags tags = new OpusTags();
     tags.Fields[OpusTagName.Title] = "Song Title";
     tags.Fields[OpusTagName.Artist] = "Artist";
-    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, true, fileOut, tags);
+    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags);
 
 	while (HasMoreAudio())
 	{
@@ -18,14 +18,15 @@ using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
 		oggOut.WriteSamples(packet, 0, packet.Length);
 	}
     
-    oggOut.Finish();
+    oggOut.Finish(); // this closes the underlying stream
 }
 
 TO DECODE:
 
 using (FileStream fileIn = new FileStream(opusfile, FileMode.Open))
 {
-    OpusOggReadStream oggIn = new OpusOggReadStream(fileIn, 48000, true);
+    OpusDecoder decoder = OpusDecoder.Create(48000, 2);
+	OpusOggReadStream oggIn = new OpusOggReadStream(decoder, fileIn);
     while (oggIn.HasNextPacket)
     {
         short[] packet = oggIn.DecodeNextPacket();

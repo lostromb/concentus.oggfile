@@ -12,7 +12,9 @@ namespace Concentus.Oggfile
     /// <summary>
     /// A class for writing audio data as an .opus Ogg stream, using an Opus encoder provided in the constructor.
     /// This will handle all of the buffering, packetization and Ogg container work in order to output standard-compliant
-    /// .opus files that can be played universally.
+    /// .opus files that can be played universally. Note that this makes very basic assumptions about output files:
+    /// - Only 1 elementary stream
+    /// - Segments may not span pages
     /// </summary>
     public class OpusOggWriteStream
     {
@@ -48,11 +50,9 @@ namespace Concentus.Oggfile
         /// cannot change is the sample rate and num# of channels.
         /// </summary>
         /// <param name="encoder">An opus encoder to use for output</param>
-        /// <param name="inputSampleRate">The sample rate to interpret the input as</param>
-        /// <param name="stereoEncoding">If true, assume input PCM is interleaved stereo</param>
         /// <param name="outputStream">A base stream to accept the encoded ogg file output</param>
         /// <param name="fileTags">(optional) A set of tags to include in the encoded file</param>
-        public OpusOggWriteStream(OpusEncoder encoder, int inputSampleRate, bool stereoEncoding, Stream outputStream, OpusTags fileTags = null)
+        public OpusOggWriteStream(OpusEncoder encoder, Stream outputStream, OpusTags fileTags = null)
         {
             _encoder = encoder;
 
@@ -62,12 +62,12 @@ namespace Concentus.Oggfile
             }
 
             _logicalStreamId = new Random().Next();
-            _inputSampleRate = inputSampleRate;
-            _inputChannels = (stereoEncoding ? 2 : 1);
+            _inputSampleRate = encoder.SampleRate;
+            _inputChannels = encoder.NumChannels;
             _outputStream = outputStream;
             _opusFrameIndex = 0;
             _granulePosition = 0;
-            _opusFrameSamples = (int)((long)inputSampleRate * FRAME_SIZE_MS / 1000);
+            _opusFrameSamples = (int)((long)_inputSampleRate * FRAME_SIZE_MS / 1000);
             _opusFrame = new short[_opusFrameSamples * _inputChannels];
             _crc = new Crc();
             BeginNewPage();
@@ -119,7 +119,7 @@ namespace Concentus.Oggfile
                     _lacingTableCount++;
 
                     // And finalize the page if we need
-                    if (_lacingTableCount > 240)
+                    if (_lacingTableCount > 248)
                     {
                         FinalizePage();
                     }
@@ -214,6 +214,7 @@ namespace Concentus.Oggfile
                 throw new InvalidOperationException("Must begin writing OpusTags on a new page!");
             }
 
+            // BUGBUG: Very long tags can overflow the page and corrupt the stream
             _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
             
             // write comment

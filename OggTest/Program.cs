@@ -25,7 +25,7 @@ namespace OggTest
                 OpusTags tags = new OpusTags();
                 tags.Fields[OpusTagName.Title] = "Prisencolinensinainciusol";
                 tags.Fields[OpusTagName.Artist] = "Adriano Celetano";
-                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, true, fileOut, tags);
+                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags);
 
                 byte[] allInput = File.ReadAllBytes(rawFile);
                 short[] samples = BytesToShorts(allInput);
@@ -38,7 +38,8 @@ namespace OggTest
             {
                 using (FileStream fileOut = new FileStream(rawFile2, FileMode.Create))
                 {
-                    OpusOggReadStream oggIn = new OpusOggReadStream(fileIn, 48000, true);
+                    OpusDecoder decoder = OpusDecoder.Create(48000, 2);
+                    OpusOggReadStream oggIn = new OpusOggReadStream(decoder, fileIn);
                     while (oggIn.HasNextPacket)
                     {
                         short[] packet = oggIn.DecodeNextPacket();
