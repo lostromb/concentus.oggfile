@@ -14,18 +14,16 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            string opusfile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus";
-            string rawFile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw";
-            string rawFile2 = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol_out.raw";
+            string opusfile = @"C:\Users\logan\Documents\Chemist.opus";
+            string rawFile = @"C:\Users\logan\Documents\Chemist.wav";
             using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
             {
                 OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
                 encoder.Bitrate = 96000;
 
                 OpusTags tags = new OpusTags();
-                tags.Comment = "Encoded by Logan";
-                tags.Fields[OpusTagName.Title] = "Prisencolinensinainciusol";
-                tags.Fields[OpusTagName.Artist] = "Adriano Celetano";
+                tags.Fields[OpusTagName.Title] = "The Garden";
+                tags.Fields[OpusTagName.Artist] = "Cut Chemist";
                 OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, 48000, true, fileOut, tags);
 
                 byte[] allInput = File.ReadAllBytes(rawFile);
@@ -35,7 +33,7 @@ namespace OggTest
                 oggOut.Finish();
             }
 
-            using (FileStream fileIn = new FileStream(opusfile, FileMode.Open))
+            /*using (FileStream fileIn = new FileStream(opusfile, FileMode.Open))
             {
                 using (FileStream fileOut = new FileStream(rawFile2, FileMode.Create))
                 {
@@ -50,7 +48,7 @@ namespace OggTest
                         }
                     }
                 }
-            }
+            }*/
         }
 
         /// <summary>
