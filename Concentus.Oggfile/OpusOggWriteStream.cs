@@ -1,4 +1,5 @@
-﻿using Concentus.Structs;
+﻿using Concentus.Common;
+using Concentus.Structs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,9 +24,14 @@ namespace Concentus.Oggfile
         private OpusEncoder _encoder;
         private Stream _outputStream;
         private Crc _crc;
-        private int _inputSampleRate;
         private int _inputChannels;
 
+        // Resampler parameters
+        private SpeexResampler _resampler;
+        private int _inputSampleRate;
+        private int _encoderSampleRate;
+
+        // Ogg page parameters
         private short[] _opusFrame;
         private int _opusFrameSamples;
         private int _opusFrameIndex;
@@ -52,7 +58,12 @@ namespace Concentus.Oggfile
         /// <param name="encoder">An opus encoder to use for output</param>
         /// <param name="outputStream">A base stream to accept the encoded ogg file output</param>
         /// <param name="fileTags">(optional) A set of tags to include in the encoded file</param>
-        public OpusOggWriteStream(OpusEncoder encoder, Stream outputStream, OpusTags fileTags = null)
+        /// <param name="inputSampleRate">The actual real sample rate of your input data (NOT the encoder's sample rate).
+        /// The opus encoder usually requires 48Khz input, but most MP3s and such will give you 44.1Khz. To get the
+        /// sample rates to line up properly in this case, set the encoder to 48000 and pass inputSampleRate = 44100,
+        /// and the write stream will perform resampling for you automatically (Note that resampling will slow down
+        /// the encoding).</param>
+        public OpusOggWriteStream(OpusEncoder encoder, Stream outputStream, OpusTags fileTags = null, int inputSampleRate = 0)
         {
             _encoder = encoder;
 
@@ -61,15 +72,23 @@ namespace Concentus.Oggfile
                 throw new ArgumentException("DTX is not currently supported in Ogg streams");
             }
 
+            _inputSampleRate = inputSampleRate;
+            if (_inputSampleRate == 0)
+            {
+                _inputSampleRate = _encoder.SampleRate;
+            }
+
             _logicalStreamId = new Random().Next();
-            _inputSampleRate = encoder.SampleRate;
+            _encoderSampleRate = encoder.SampleRate;
             _inputChannels = encoder.NumChannels;
             _outputStream = outputStream;
             _opusFrameIndex = 0;
             _granulePosition = 0;
-            _opusFrameSamples = (int)((long)_inputSampleRate * FRAME_SIZE_MS / 1000);
+            _opusFrameSamples = (int)((long)_encoderSampleRate * FRAME_SIZE_MS / 1000);
             _opusFrame = new short[_opusFrameSamples * _inputChannels];
             _crc = new Crc();
+            _resampler = SpeexResampler.Create(_inputChannels, _inputSampleRate, _encoderSampleRate, 5);
+
             BeginNewPage();
             WriteOpusHeadPage();
             WriteOpusTagsPage(fileTags);
@@ -89,14 +108,38 @@ namespace Concentus.Oggfile
                 throw new InvalidOperationException("Cannot write new samples to Ogg file, the output stream is already closed!");
             }
 
+            if ((data.Length - offset) < count)
+            {
+                // Check that caller isn't lying about its buffer sizes
+                throw new ArgumentOutOfRangeException("The given audio buffer claims to have " + count + " samples, but it actually only has " + (data.Length - offset));
+            }
+
             // Try and fill the opus frame
+            // input cursor in RAW SAMPLES
             int inputCursor = 0;
+            // output cursor in RAW SAMPLES
             int amountToWrite = Math.Min(_opusFrame.Length - _opusFrameIndex, count - inputCursor);
             while (amountToWrite > 0)
             {
-                Array.Copy(data, offset + inputCursor, _opusFrame, _opusFrameIndex, amountToWrite);
-                _opusFrameIndex += amountToWrite;
-                inputCursor += amountToWrite;
+                // Do we need to resample?
+                if (_inputSampleRate != _encoderSampleRate)
+                {
+                    // Resample the input
+                    // divide by channel count because these numbers are in samples-per-channel
+                    int in_len = (count - inputCursor) / _inputChannels;
+                    int out_len = amountToWrite / _inputChannels;
+                    _resampler.ProcessInterleaved(data, offset + inputCursor, ref in_len, _opusFrame, _opusFrameIndex, ref out_len);
+                    inputCursor += in_len * _inputChannels;
+                    _opusFrameIndex += out_len * _inputChannels;
+                }
+                else
+                {
+                    // If no resampling, we can do a straight memcpy instead
+                    Array.Copy(data, offset + inputCursor, _opusFrame, _opusFrameIndex, amountToWrite);
+                    _opusFrameIndex += amountToWrite;
+                    inputCursor += amountToWrite;
+                }
+
                 if (_opusFrameIndex == _opusFrame.Length)
                 {
                     // Frame is finished. Encode it
@@ -119,6 +162,8 @@ namespace Concentus.Oggfile
                     _lacingTableCount++;
 
                     // And finalize the page if we need
+                    // 284 is a magic number meaning "our page is almost full so just finalize it"
+                    // A more proper implementation would have the packets span to the next page, but meh
                     if (_lacingTableCount > 248)
                     {
                         FinalizePage();
@@ -129,6 +174,31 @@ namespace Concentus.Oggfile
 
                 amountToWrite = Math.Min(_opusFrame.Length - _opusFrameIndex, count - inputCursor);
             }
+        }
+
+        /// <summary>
+        /// Writes a buffer of PCM audio samples to the encoder and packetizer. Runs Opus encoding and potentially outputs one or more pages to the underlying Ogg stream.
+        /// You can write any non-zero number of samples that you want here; there are no restrictions on length or packet boundaries.
+        /// This function is slightly more wasteful than the short[] version because it has to convert the samples from float to fixed-point.
+        /// </summary>
+        /// <param name="data">The audio samples to write. If stereo, this will be interleaved</param>
+        /// <param name="offset">The offset to use when reading data</param>
+        /// <param name="count">The amount of PCM data to write</param>
+        public void WriteSamples(float[] data, int offset, int count)
+        {
+            if (_finalized)
+            {
+                throw new InvalidOperationException("Cannot write new samples to Ogg file, the output stream is already closed!");
+            }
+
+            // Convert float samples to PCM16
+            short[] convertedData = new short[count];
+            for (int c = 0; c < count; c++)
+            {
+                convertedData[c] = (short)(data[c + offset] * 32767);
+            }
+
+            WriteSamples(convertedData, 0, count);
         }
 
         /// <summary>
@@ -181,7 +251,7 @@ namespace Concentus.Oggfile
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
             short preskip = 0;
             _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip.
-            _payloadIndex += WriteValueToByteBuffer(_inputSampleRate, _currentPayload, _payloadIndex); //Input sample rate
+            _payloadIndex += WriteValueToByteBuffer(_encoderSampleRate, _currentPayload, _payloadIndex); //Input sample rate
             short outputGain = 0;
             _payloadIndex += WriteValueToByteBuffer(outputGain, _currentPayload, _payloadIndex); // Output gain in Q8
             _currentPayload[_payloadIndex++] = 0x00; // Channel map (0 indicates mono/stereo config)
