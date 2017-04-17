@@ -276,7 +276,7 @@ namespace Concentus.Oggfile
 
             if (string.IsNullOrEmpty(tags.Comment))
             {
-                tags.Comment = "Concentus.OggFile 0.0.4";
+                tags.Comment = CodecHelpers.GetVersionString();
             }
 
             if (_payloadIndex != 0)
