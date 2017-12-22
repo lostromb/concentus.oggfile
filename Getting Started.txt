@@ -10,7 +10,7 @@ using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
     OpusTags tags = new OpusTags();
     tags.Fields[OpusTagName.Title] = "Song Title";
     tags.Fields[OpusTagName.Artist] = "Artist";
-    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags);
+    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags, 44100); // instead of 44100 pass the actual input sample rate of your audio here
 
 	while (HasMoreAudio())
 	{

@@ -19,22 +19,19 @@
   <Import Project="$(NuProjPath)\NuProj.props" Condition="Exists('$(NuProjPath)\NuProj.props')" />
   <PropertyGroup Label="Configuration">
     <Id>Concentus.OggFile</Id>
-    <Version>1.0.0</Version>
+    <Version>1.0.3</Version>
     <Title>Concentus.OggFile</Title>
     <Authors>Logan Stromberg</Authors>
     <Owners>Logan Stromberg</Owners>
     <Summary>OggOpus file handlers utilizing the Concentus codec</Summary>
     <Description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally. The Concentus library is used to encode/decode the opus packets automatically, with no C++ interop required.</Description>
-    <ReleaseNotes>v1.0.0 I believe this is enough for a stable release now</ReleaseNotes>
+    <ReleaseNotes>v1.0.3 Fixing a bug where frame size is miscalculated when decoder is less than 48khz</ReleaseNotes>
     <ProjectUrl>https://github.com/lostromb/concentus.oggfile</ProjectUrl>
     <LicenseUrl>https://opensource.org/licenses/MS-PL</LicenseUrl>
     <Copyright>Copyright © Logan Stromberg, Andrew Ward</Copyright>
     <Tags>Concentus Opus Ogg Audio Encoding Decoding Codec Container Media</Tags>
     <IconUrl>http://durandal.dnsalias.net/imgur/concentus.png</IconUrl>
   </PropertyGroup>
-  <ItemGroup>
-    <Content Include="Readme.txt" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Concentus.Oggfile\Concentus.Oggfile.csproj" />
   </ItemGroup>
