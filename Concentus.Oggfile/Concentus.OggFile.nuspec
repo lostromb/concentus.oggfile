@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+    <metadata>
+		<!-- Required elements-->
+		<id>Concentus.OggFile</id>
+		<version>1.0.2</version>
+		<description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally. The Concentus library is used to encode/decode the opus packets automatically, with no C++ interop required.</description>
+		<authors>Logan Stromberg</authors>
+
+		<!-- Optional elements -->
+		<title>Concentus</title>
+		<owners>lostromb</owners>
+		<projectUrl>todo</projectUrl>
+		<copyright>todo</copyright>
+		<dependencies>
+			<dependency id="NETStandard.Library" version="1.6.0" />
+			<dependency id="Newtonsoft.Json" version="9.0.1" />
+			<dependency id="Concentus" version="1.1.7" />
+			<dependency id="Microsoft.NETCore.Portable.Compatibility" version="1.0.1" />
+		</dependencies>
+    </metadata>
+    <files>
+		<file src=".\bin\Release\Concentus.Oggfile.dll" target="lib\portab1e" />
+		<file src=".\bin\Release\Concentus.Oggfile.pdb" target="lib\portab1e" />
+		<file src=".\bin\Release\Concentus.Oggfile.xml" target="lib\portab1e" />
+	</files>
+</package>

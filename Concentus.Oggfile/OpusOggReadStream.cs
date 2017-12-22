@@ -20,24 +20,18 @@ namespace Concentus.Oggfile
         private OpusTags _tags;
         private IPacketProvider _packetProvider;
         private bool _endOfStream;
-        private int _decoderChannels;
         private string _lastError;
 
         /// <summary>
         /// Builds an Ogg file reader that decodes Opus packets from the given input stream, using a 
-        /// specified output sample rate and channel count. This will implicitly build an OpusDecoder object
+        /// specified output sample rate and channel count. The given decoder will be used as-is
         /// and return the decoded PCM buffers directly.
         /// </summary>
         /// <param name="decoder">An Opus decoder. If you are reusing an existing decoder, remember to call Reset() on it before
-        /// processing a new stream</param>
-        /// <param name="oggFileInput">The input stream for an Ogg formatted .opus file</param>
+        /// processing a new stream. The decoder is optional for cases where you may only be interested in the file tags</param>
+        /// <param name="oggFileInput">The input stream for an Ogg formatted .opus file. The stream will be read from immediately</param>
         public OpusOggReadStream(OpusDecoder decoder, Stream oggFileInput)
         {
-            if (decoder == null)
-            {
-                throw new ArgumentNullException("decoder");
-            }
-
             if (oggFileInput == null)
             {
                 throw new ArgumentNullException("oggFileInput");
@@ -46,7 +40,6 @@ namespace Concentus.Oggfile
             _inputStream = oggFileInput;
             _decoder = decoder;
             _endOfStream = false;
-            _decoderChannels = decoder.NumChannels;
             if (!Initialize())
             {
                 _endOfStream = true;
@@ -96,6 +89,11 @@ namespace Concentus.Oggfile
         /// <returns>The decoded audio for the next packet in the stream, or NULL</returns>
         public short[] DecodeNextPacket()
         {
+            if (_decoder == null)
+            {
+                throw new InvalidOperationException("Cannot decode opus packets as a decoder was never provided");
+            }
+
             if (_nextDataPacket == null || _nextDataPacket.Length == 0)
             {
                 _endOfStream = true;
@@ -108,8 +106,8 @@ namespace Concentus.Oggfile
 
             try
             {
-                int numSamples = OpusPacketInfo.GetNumSamples(_nextDataPacket, 0, _nextDataPacket.Length, 48000);
-                short[] output = new short[numSamples * _decoderChannels];
+                int numSamples = OpusPacketInfo.GetNumSamples(_nextDataPacket, 0, _nextDataPacket.Length, _decoder.SampleRate);
+                short[] output = new short[numSamples * _decoder.NumChannels];
                 _decoder.Decode(_nextDataPacket, 0, _nextDataPacket.Length, output, 0, numSamples, false);
                 QueueNextPacket();
                 return output;
