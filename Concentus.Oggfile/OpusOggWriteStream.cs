@@ -1,4 +1,5 @@
 ﻿using Concentus.Common;
+using Concentus.Enums;
 using Concentus.Structs;
 using System;
 using System.Collections.Generic;
@@ -19,12 +20,11 @@ namespace Concentus.Oggfile
     /// </summary>
     public class OpusOggWriteStream
     {
-        private const int FRAME_SIZE_MS = 20;
-
         private OpusEncoder _encoder;
         private Stream _outputStream;
         private Crc _crc;
         private int _inputChannels;
+        private int _framesizeMs;
 
         // Resampler parameters
         private SpeexResampler _resampler;
@@ -49,6 +49,14 @@ namespace Concentus.Oggfile
         private const int SEGMENT_COUNT_POS = 26;
         private bool _finalized = false;
 
+        // Advanced use parameters
+
+        /// <summary>
+        /// The total number of segments (Opus packets) to include in a single Ogg page.
+        /// Use the max value by default (I forget why I don't use 255 here but I think it was just for paranoia?)
+        /// </summary>
+        private byte _segmentsPerPage = 254;
+
         /// <summary>
         /// Constructs a stream that will accept PCM audio input, and automatically encode it to Opus and packetize it using Ogg,
         /// writing the output pages to an underlying stream (usually a file stream).
@@ -62,8 +70,15 @@ namespace Concentus.Oggfile
         /// The opus encoder usually requires 48Khz input, but most MP3s and such will give you 44.1Khz. To get the
         /// sample rates to line up properly in this case, set the encoder to 48000 and pass inputSampleRate = 44100,
         /// and the write stream will perform resampling for you automatically (Note that resampling will slow down
-        /// the encoding).</param>
-        public OpusOggWriteStream(OpusEncoder encoder, Stream outputStream, OpusTags fileTags = null, int inputSampleRate = 0)
+        /// the encoding). By default, this is set to the encoder's input sample rate</param>
+        /// <param name="frameSize">The size to use for each Opus packet. Larger packets can reduce overhead slightly</param>
+        /// <param name="resamplingQuality">The quality level to use if resampling is performed, between 0 and 10</param>
+        public OpusOggWriteStream(OpusEncoder encoder,
+            Stream outputStream,
+            OpusTags fileTags = null,
+            int inputSampleRate = 0,
+            OpusFramesize frameSize = OpusFramesize.OPUS_FRAMESIZE_20_MS,
+            int resamplingQuality = 5)
         {
             _encoder = encoder;
 
@@ -78,20 +93,64 @@ namespace Concentus.Oggfile
                 _inputSampleRate = _encoder.SampleRate;
             }
 
+            switch (frameSize)
+            {
+                case OpusFramesize.OPUS_FRAMESIZE_5_MS:
+                    _framesizeMs = 5;
+                    break;
+                case OpusFramesize.OPUS_FRAMESIZE_10_MS:
+                    _framesizeMs = 10;
+                    break;
+                case OpusFramesize.OPUS_FRAMESIZE_20_MS:
+                    _framesizeMs = 20;
+                    break;
+                case OpusFramesize.OPUS_FRAMESIZE_40_MS:
+                    _framesizeMs = 40;
+                    break;
+                case OpusFramesize.OPUS_FRAMESIZE_60_MS:
+                    _framesizeMs = 60;
+                    break;
+                default:
+                    throw new ArgumentException("Unsupported frame size " + frameSize.ToString());
+            }
+
             _logicalStreamId = new Random().Next();
             _encoderSampleRate = encoder.SampleRate;
             _inputChannels = encoder.NumChannels;
             _outputStream = outputStream;
             _opusFrameIndex = 0;
             _granulePosition = 0;
-            _opusFrameSamples = (int)((long)_encoderSampleRate * FRAME_SIZE_MS / 1000);
+            _opusFrameSamples = (int)((long)_encoderSampleRate * _framesizeMs / 1000);
             _opusFrame = new short[_opusFrameSamples * _inputChannels];
             _crc = new Crc();
-            _resampler = SpeexResampler.Create(_inputChannels, _inputSampleRate, _encoderSampleRate, 5);
+            _resampler = SpeexResampler.Create(_inputChannels, _inputSampleRate, _encoderSampleRate, resamplingQuality);
 
             BeginNewPage();
             WriteOpusHeadPage();
             WriteOpusTagsPage(fileTags);
+        }
+
+        /// <summary>
+        /// (Expert use) Gets or sets the number of segments (Opus packets) to encode into a single Ogg page.
+        /// Each page can contain up to 255 segments. A page cannot be committed to output until it is filled and checksummed.
+        /// Therefore, setting this value to a number lower than 255 will decrease the output delay and increase the Ogg muxing overhead
+        /// as it forces new pages to be created faster. This is only really helpful in real-time scenarios
+        /// </summary>
+        public byte SegmentsPerPage
+        {
+            get
+            {
+                return _segmentsPerPage;
+            }
+            set
+            {
+                if (value == 0)
+                {
+                    throw new ArgumentException("Pages cannot contain zero segments");
+                }
+
+                _segmentsPerPage = value;
+            }
         }
 
         /// <summary>
@@ -147,9 +206,9 @@ namespace Concentus.Oggfile
                     _payloadIndex += packetSize;
 
                     // Opus granules are measured in 48Khz samples. 
-                    // Since the framesize is fixed (20ms) and the sample rate doesn't change, this is basically a constant value
-                    _granulePosition += FRAME_SIZE_MS * 48;
-
+                    // Since the framesize is fixed at construction time and the sample rate doesn't change, this is basically a constant value
+                    _granulePosition += _framesizeMs * 48;
+                    
                     // And update the lacing values in the header
                     int segmentLength = packetSize;
                     while (segmentLength >= 255)
@@ -161,10 +220,9 @@ namespace Concentus.Oggfile
                     _currentHeader[_headerIndex++] = (byte)segmentLength;
                     _lacingTableCount++;
 
-                    // And finalize the page if we need
-                    // 284 is a magic number meaning "our page is almost full so just finalize it"
+                    // And finalize the page if we need (generally, if the # of segments is nearing 255)
                     // A more proper implementation would have the packets span to the next page, but meh
-                    if (_lacingTableCount > 248)
+                    if (_lacingTableCount >= _segmentsPerPage)
                     {
                         FinalizePage();
                     }
