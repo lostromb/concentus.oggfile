@@ -1,10 +1,7 @@
 ﻿using Concentus.Structs;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Concentus.Oggfile
 {
@@ -14,13 +11,12 @@ namespace Concentus.Oggfile
     /// </summary>
     public class OpusOggReadStream
     {
-        private Stream _inputStream;
+        private readonly Stream _stream;
+        private readonly OpusDecoder _decoder;
+
         private byte[] _nextDataPacket;
-        private OpusDecoder _decoder;
-        private OpusTags _tags;
         private IPacketProvider _packetProvider;
         private bool _endOfStream;
-        private string _lastError;
 
         /// <summary>
         /// Builds an Ogg file reader that decodes Opus packets from the given input stream, using a 
@@ -29,57 +25,60 @@ namespace Concentus.Oggfile
         /// </summary>
         /// <param name="decoder">An Opus decoder. If you are reusing an existing decoder, remember to call Reset() on it before
         /// processing a new stream. The decoder is optional for cases where you may only be interested in the file tags</param>
-        /// <param name="oggFileInput">The input stream for an Ogg formatted .opus file. The stream will be read from immediately</param>
-        public OpusOggReadStream(OpusDecoder decoder, Stream oggFileInput)
+        /// <param name="stream">The input stream for an Ogg formatted .opus file. The stream will be read from immediately</param>
+        public OpusOggReadStream(OpusDecoder decoder, Stream stream)
         {
-            if (oggFileInput == null)
+            if (decoder == null)
             {
-                throw new ArgumentNullException("oggFileInput");
+                throw new ArgumentNullException(nameof(decoder));
+
+            }
+            if (stream == null)
+            {
+                throw new ArgumentNullException(nameof(stream));
             }
 
-            _inputStream = oggFileInput;
+            _stream = stream;
             _decoder = decoder;
-            _endOfStream = false;
-            if (!Initialize())
-            {
-                _endOfStream = true;
-            }
+            _endOfStream = !Initialize();
         }
 
         /// <summary>
         /// Gets the tags that were parsed from the OpusTags Ogg packet, or NULL if no such packet was found.
         /// </summary>
-        public OpusTags Tags
-        {
-            get
-            {
-                return _tags;
-            }
-        }
+        public OpusTags Tags { get; private set; }
 
         /// <summary>
         /// Returns true if there is still another data packet to be decoded from the current Ogg stream.
         /// Note that this decoder currently only assumes that the input has 1 elementary stream with no splices
         /// or other fancy things.
         /// </summary>
-        public bool HasNextPacket
-        {
-            get
-            {
-                return !_endOfStream;
-            }
-        }
+        public bool HasNextPacket => !_endOfStream;
 
         /// <summary>
         /// If an error happened either in stream initialization, reading, or decoding, the message will appear here.
         /// </summary>
-        public string LastError
-        {
-            get
-            {
-                return _lastError;
-            }
-        }
+        public string LastError { get; private set; }
+
+        /// <summary>
+        /// Gets the position of the last granule in the page the packet is in.
+        /// </summary>
+        public long PageGranulePosition { get; private set; }
+
+        /// <summary>
+        /// Gets the total number of granules in this stream.
+        /// </summary>
+        public long GranuleCount { get; private set; }
+
+        /// <summary>
+        /// Gets the current pages (or frame) position in this stream.
+        /// </summary>
+        public long PagePosition { get; private set; }
+
+        /// <summary>
+        /// Gets the total number of pages (or frames) this stream uses.
+        /// </summary>
+        public long PageCount { get; private set; }
 
         /// <summary>
         /// Reads the next packet from the Ogg stream and decodes it, returning the decoded PCM buffer.
@@ -97,10 +96,6 @@ namespace Concentus.Oggfile
             if (_nextDataPacket == null || _nextDataPacket.Length == 0)
             {
                 _endOfStream = true;
-            }
-
-            if (_endOfStream)
-            {
                 return null;
             }
 
@@ -109,12 +104,14 @@ namespace Concentus.Oggfile
                 int numSamples = OpusPacketInfo.GetNumSamples(_nextDataPacket, 0, _nextDataPacket.Length, _decoder.SampleRate);
                 short[] output = new short[numSamples * _decoder.NumChannels];
                 _decoder.Decode(_nextDataPacket, 0, _nextDataPacket.Length, output, 0, numSamples, false);
+
                 QueueNextPacket();
+
                 return output;
             }
             catch (OpusException e)
             {
-                _lastError = "Opus decoder threw exception: " + e.Message;
+                LastError = "Opus decoder threw exception: " + e.Message;
                 return null;
             }
         }
@@ -128,35 +125,80 @@ namespace Concentus.Oggfile
         {
             try
             {
-                OggContainerReader reader = new OggContainerReader(_inputStream, true);
-                if (!reader.Init())
+                var oggContainerReader = new OggContainerReader(_stream, true);
+                if (!oggContainerReader.Init())
                 {
-                    _lastError = "Could not initialize stream";
+                    LastError = "Could not initialize stream";
                     return false;
                 }
 
-                //if (!reader.FindNextStream())
-                //{
-                //    _lastError = "Could not find elementary stream";
-                //    return false;
-                //}
-                if (reader.StreamSerials.Length == 0)
+                if (oggContainerReader.StreamSerials.Length == 0)
                 {
-                    _lastError = "Initialization failed: No elementary streams found in input file";
+                    LastError = "Initialization failed: No elementary streams found in input file";
                     return false;
                 }
 
-                int streamSerial = reader.StreamSerials[0];
-                _packetProvider = reader.GetStream(streamSerial);
+                int firstStreamSerial = oggContainerReader.StreamSerials[0];
+                _packetProvider = oggContainerReader.GetStream(firstStreamSerial);
+
+                GranuleCount = _packetProvider.GetGranuleCount();
+                PageCount = _packetProvider.GetTotalPageCount();
+
                 QueueNextPacket();
 
                 return true;
             }
             catch (Exception e)
             {
-                _lastError = "Unknown initialization error: " + e.Message;
+                LastError = "Unknown initialization error: " + e.Message;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Seeks the Opus stream for a valid packet at the specified offset.
+        /// </summary>
+        /// <param name="offset">The sample offset.</param>
+        public void SeekTo(long offset)
+        {
+            // Find a packet based on offset and return 1 in the callback if the packet is valid
+            var foundPacket = _packetProvider.FindPacket(offset, GetPacketLength);
+
+            // Check of the found packet is valid
+            if (foundPacket == null || foundPacket.IsEndOfStream)
+            {
+                _endOfStream = true;
+                _nextDataPacket = null;
+                return;
+            }
+
+            // Just seek to this found packet and get the previous packet (preRoll = 1)
+            _packetProvider.SeekToPacket(foundPacket, 1);
+
+            // Update the PageGranulePosition to the position from this next packet which will be retrieved by the next QueueNextPacket call
+            PageGranulePosition = _packetProvider.PeekNextPacket().PageGranulePosition;
+        }
+
+        private int GetPacketLength(DataPacket curPacket, DataPacket lastPacket)
+        {
+            // if we don't have a previous packet, or we're re-syncing, this packet has no audio data to return
+            if (lastPacket == null || curPacket.IsResync)
+            {
+                return 0;
+            }
+
+            // make sure they are audio packets
+            if (curPacket.ReadBit())
+            {
+                return 0;
+            }
+            if (lastPacket.ReadBit())
+            {
+                return 0;
+            }
+
+            // Just return a value > 0
+            return 1;
         }
 
         /// <summary>
@@ -178,6 +220,9 @@ namespace Concentus.Oggfile
                 return;
             }
 
+            PageGranulePosition = packet.PageGranulePosition;
+            PagePosition = packet.PageSequenceNumber;
+
             byte[] buf = new byte[packet.Length];
             packet.Read(buf, 0, packet.Length);
             packet.Done();
@@ -188,7 +233,7 @@ namespace Concentus.Oggfile
             }
             else if (buf.Length > 8 && "OpusTags".Equals(Encoding.UTF8.GetString(buf, 0, 8)))
             {
-                _tags = OpusTags.ParsePacket(buf, buf.Length);
+                Tags = OpusTags.ParsePacket(buf, buf.Length);
                 QueueNextPacket();
             }
             else
