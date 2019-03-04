@@ -44,6 +44,11 @@ namespace Concentus.Oggfile
         }
 
         /// <summary>
+        /// Gets a value indicating whether the current stream supports seeking.
+        /// </summary>
+        public bool CanSeek => _stream.CanSeek;
+
+        /// <summary>
         /// Gets the tags that were parsed from the OpusTags Ogg packet, or NULL if no such packet was found.
         /// </summary>
         public OpusTags Tags { get; private set; }
@@ -156,13 +161,23 @@ namespace Concentus.Oggfile
         }
 
         /// <summary>
-        /// Seeks the Opus stream for a valid packet at the specified offset.
+        /// Seeks the Opus stream for a valid packet at the specified granule position.
         /// </summary>
-        /// <param name="offset">The sample offset.</param>
-        public void SeekTo(long offset)
+        /// <param name="granulePosition">The granule position.</param>
+        public void SeekTo(long granulePosition)
         {
+            if (!CanSeek)
+            {
+                throw new InvalidOperationException("Stream is not seekable.");
+            }
+
+            if (granulePosition < 0 || granulePosition > GranuleCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(granulePosition));
+            }
+
             // Find a packet based on offset and return 1 in the callback if the packet is valid
-            var foundPacket = _packetProvider.FindPacket(offset, GetPacketLength);
+            var foundPacket = _packetProvider.FindPacket(granulePosition, GetPacketLength);
 
             // Check of the found packet is valid
             if (foundPacket == null || foundPacket.IsEndOfStream)
