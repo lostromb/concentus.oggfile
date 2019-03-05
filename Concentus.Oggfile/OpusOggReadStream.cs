@@ -11,6 +11,7 @@ namespace Concentus.Oggfile
     /// </summary>
     public class OpusOggReadStream
     {
+        private const int BytesPerSample = 2;
         private readonly Stream _stream;
         private readonly OpusDecoder _decoder;
 
@@ -71,9 +72,29 @@ namespace Concentus.Oggfile
         public long PageGranulePosition { get; private set; }
 
         /// <summary>
+        /// Gets the sample position in the stream.
+        /// </summary>
+        public long Position => PageGranulePosition * _decoder.NumChannels * BytesPerSample;
+
+        /// <summary>
+        /// Gets the current play time in the stream.
+        /// </summary>
+        public TimeSpan CurrentTime => TimeSpan.FromSeconds(1.0 * PageGranulePosition / _decoder.SampleRate);
+
+        /// <summary>
         /// Gets the total number of granules in this stream.
         /// </summary>
         public long GranuleCount { get; private set; }
+
+        /// <summary>
+        /// Gets the total sample length from this stream.
+        /// </summary>
+        public long Length => GranuleCount * _decoder.NumChannels * BytesPerSample;
+
+        /// <summary>
+        /// Gets the total time length from this stream.
+        /// </summary>
+        public TimeSpan TotalTime => TimeSpan.FromSeconds(1.0 * GranuleCount / _decoder.SampleRate);
 
         /// <summary>
         /// Gets the current pages (or frame) position in this stream.
@@ -160,11 +181,23 @@ namespace Concentus.Oggfile
             }
         }
 
+        public void SeekTo(TimeSpan playbackTime)
+        {
+            long samplePosition = Convert.ToInt64(playbackTime.TotalSeconds * _decoder.SampleRate);
+            SeekTo(samplePosition);
+        }
+
+        public void SeekTo(long samplePosition)
+        {
+            long granulePosition = Convert.ToInt64(1.0 * samplePosition / (_decoder.NumChannels * BytesPerSample));
+            SeekToGranulePosition(granulePosition);
+        }
+
         /// <summary>
         /// Seeks the Opus stream for a valid packet at the specified granule position.
         /// </summary>
         /// <param name="granulePosition">The granule position.</param>
-        public void SeekTo(long granulePosition)
+        public void SeekToGranulePosition(long granulePosition)
         {
             if (!CanSeek)
             {
@@ -193,7 +226,7 @@ namespace Concentus.Oggfile
             // Update the PageGranulePosition to the position from this next packet which will be retrieved by the next QueueNextPacket call
             PageGranulePosition = _packetProvider.PeekNextPacket().PageGranulePosition;
 
-            // Reset the state from the decoder to start processing a fresh stream;
+            // Reset the state from the decoder to start processing a fresh stream
             _decoder.ResetState();
         }
 
