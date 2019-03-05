@@ -192,6 +192,9 @@ namespace Concentus.Oggfile
 
             // Update the PageGranulePosition to the position from this next packet which will be retrieved by the next QueueNextPacket call
             PageGranulePosition = _packetProvider.PeekNextPacket().PageGranulePosition;
+
+            // Reset the state from the decoder to start processing a fresh stream;
+            _decoder.ResetState();
         }
 
         private int GetPacketLength(DataPacket curPacket, DataPacket lastPacket)
