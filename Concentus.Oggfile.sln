@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Concentus.Oggfile", "Concen
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OggTest", "OggTest\OggTest.csproj", "{812E353C-2404-4747-B7E6-1ADD162435BE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpusTestForSeeking", "OpusTestForSeeking\OpusTestForSeeking.csproj", "{B526D4BB-65BC-4CD9-9B75-CC473EE4CB87}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,10 +21,6 @@ Global
 		{812E353C-2404-4747-B7E6-1ADD162435BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{812E353C-2404-4747-B7E6-1ADD162435BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{812E353C-2404-4747-B7E6-1ADD162435BE}.Release|Any CPU.Build.0 = Release|Any CPU
-		{B526D4BB-65BC-4CD9-9B75-CC473EE4CB87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{B526D4BB-65BC-4CD9-9B75-CC473EE4CB87}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{B526D4BB-65BC-4CD9-9B75-CC473EE4CB87}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{B526D4BB-65BC-4CD9-9B75-CC473EE4CB87}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
