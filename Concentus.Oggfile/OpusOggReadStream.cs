@@ -72,12 +72,7 @@ namespace Concentus.Oggfile
         public long PageGranulePosition { get; private set; }
 
         /// <summary>
-        /// Gets the sample position in the stream.
-        /// </summary>
-        public long Position => PageGranulePosition * _decoder.NumChannels * BytesPerSample;
-
-        /// <summary>
-        /// Gets the current play time in the stream.
+        /// Gets the current time in the stream.
         /// </summary>
         public TimeSpan CurrentTime => TimeSpan.FromSeconds(1.0 * PageGranulePosition / _decoder.SampleRate);
 
@@ -87,12 +82,7 @@ namespace Concentus.Oggfile
         public long GranuleCount { get; private set; }
 
         /// <summary>
-        /// Gets the total sample length from this stream.
-        /// </summary>
-        public long Length => GranuleCount * _decoder.NumChannels * BytesPerSample;
-
-        /// <summary>
-        /// Gets the total time length from this stream.
+        /// Gets the total time from the stream. Only available if the stream is seekable.
         /// </summary>
         public TimeSpan TotalTime => TimeSpan.FromSeconds(1.0 * GranuleCount / _decoder.SampleRate);
 
@@ -102,7 +92,7 @@ namespace Concentus.Oggfile
         public long PagePosition { get; private set; }
 
         /// <summary>
-        /// Gets the total number of pages (or frames) this stream uses.
+        /// Gets the total number of pages (or frames) this stream uses. Only available if the stream is seekable.
         /// </summary>
         public long PageCount { get; private set; }
 
@@ -167,8 +157,11 @@ namespace Concentus.Oggfile
                 int firstStreamSerial = oggContainerReader.StreamSerials[0];
                 _packetProvider = oggContainerReader.GetStream(firstStreamSerial);
 
-                GranuleCount = _packetProvider.GetGranuleCount();
-                PageCount = _packetProvider.GetTotalPageCount();
+                if (CanSeek)
+                {
+                    GranuleCount = _packetProvider.GetGranuleCount();
+                    PageCount = _packetProvider.GetTotalPageCount();
+                }
 
                 QueueNextPacket();
 
@@ -181,20 +174,28 @@ namespace Concentus.Oggfile
             }
         }
 
+        /// <summary>
+        /// Seeks the stream for a valid packet at the specified playbackTime. Note that this is the best approximated position.
+        /// </summary>
+        /// <param name="playbackTime">The playback time.</param>
         public void SeekTo(TimeSpan playbackTime)
         {
-            long samplePosition = Convert.ToInt64(playbackTime.TotalSeconds * _decoder.SampleRate);
-            SeekTo(samplePosition);
-        }
+            if (!CanSeek)
+            {
+                throw new InvalidOperationException("Stream is not seekable.");
+            }
 
-        public void SeekTo(long samplePosition)
-        {
-            long granulePosition = Convert.ToInt64(1.0 * samplePosition / (_decoder.NumChannels * BytesPerSample));
+            if (playbackTime < TimeSpan.Zero || playbackTime > TotalTime)
+            {
+                throw new ArgumentOutOfRangeException(nameof(playbackTime));
+            }
+
+            long granulePosition = Convert.ToInt64(playbackTime.TotalSeconds * _decoder.SampleRate);
             SeekToGranulePosition(granulePosition);
         }
 
         /// <summary>
-        /// Seeks the Opus stream for a valid packet at the specified granule position.
+        /// Seeks the stream for a valid packet at the specified granule position.
         /// </summary>
         /// <param name="granulePosition">The granule position.</param>
         public void SeekToGranulePosition(long granulePosition)
