@@ -11,7 +11,7 @@ namespace Concentus.Oggfile
     /// </summary>
     public class OpusOggReadStream
     {
-        private const int BytesPerSample = 2;
+        private const double GranuleSampleRate = 48000.0; // Granule position is always expressed in units of 48000hz
         private readonly Stream _stream;
         private readonly OpusDecoder _decoder;
 
@@ -74,7 +74,7 @@ namespace Concentus.Oggfile
         /// <summary>
         /// Gets the current time in the stream.
         /// </summary>
-        public TimeSpan CurrentTime => TimeSpan.FromSeconds(1.0 * PageGranulePosition / _decoder.SampleRate);
+        public TimeSpan CurrentTime => TimeSpan.FromSeconds(PageGranulePosition / GranuleSampleRate);
 
         /// <summary>
         /// Gets the total number of granules in this stream.
@@ -84,7 +84,7 @@ namespace Concentus.Oggfile
         /// <summary>
         /// Gets the total time from the stream. Only available if the stream is seekable.
         /// </summary>
-        public TimeSpan TotalTime => TimeSpan.FromSeconds(1.0 * GranuleCount / _decoder.SampleRate);
+        public TimeSpan TotalTime => TimeSpan.FromSeconds(GranuleCount / GranuleSampleRate);
 
         /// <summary>
         /// Gets the current pages (or frame) position in this stream.
@@ -190,7 +190,7 @@ namespace Concentus.Oggfile
                 throw new ArgumentOutOfRangeException(nameof(playbackTime));
             }
 
-            long granulePosition = Convert.ToInt64(playbackTime.TotalSeconds * _decoder.SampleRate);
+            long granulePosition = Convert.ToInt64(playbackTime.TotalSeconds * GranuleSampleRate);
             SeekToGranulePosition(granulePosition);
         }
 
