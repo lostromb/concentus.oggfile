@@ -198,7 +198,7 @@ namespace Concentus.Oggfile
         /// Seeks the stream for a valid packet at the specified granule position.
         /// </summary>
         /// <param name="granulePosition">The granule position.</param>
-        public void SeekToGranulePosition(long granulePosition)
+        private void SeekToGranulePosition(long granulePosition)
         {
             if (!CanSeek)
             {
