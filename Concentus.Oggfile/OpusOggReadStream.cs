@@ -265,7 +265,7 @@ namespace Concentus.Oggfile
             }
 
             DataPacket packet = _packetProvider.GetNextPacket();
-            if (packet == null || packet.IsEndOfStream)
+            if (packet == null)
             {
                 _endOfStream = true;
                 _nextDataPacket = null;
