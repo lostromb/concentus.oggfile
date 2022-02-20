@@ -215,7 +215,8 @@ namespace Concentus.Oggfile
             if (!_baseStream.CanSeek)
             {
                 if (offset < _buffer.BaseOffset) throw new InvalidOperationException("Cannot seek to before the start of the buffer!");
-                if (offset >= _buffer.BufferEndOffset) throw new InvalidOperationException("Cannot seek to beyond the end of the buffer!  Discard some bytes.");
+                if (offset > _buffer.BufferEndOffset)
+                    throw new InvalidOperationException("Cannot seek to beyond the end of the buffer!  Discard some bytes.");
             }
 
             return (_readPosition = offset);
