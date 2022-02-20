@@ -1,6 +1,7 @@
 ﻿using Concentus.Enums;
 using Concentus.Oggfile;
 using Concentus.Structs;
+using EricOulashin;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,12 +15,13 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            string opusfile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus";
-            string rawFile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw";
-            string rawFile2 = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol_out.raw";
+            string opusfile = "C:\\Users\\ayaz\\Downloads\\speech2.opus"; // ogg
+            string rawFile = "C:\\Users\\ayaz\\Downloads\\a2002011001-e02-8kHz.wav";
+            string rawFile2 = "C:\\Users\\ayaz\\Downloads\\speech2.raw";
+            string rawFile2Wav = "C:\\Users\\ayaz\\Downloads\\speech3.wav";
             using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
             {
-                OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+                OpusEncoder encoder = new OpusEncoder(8000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
                 encoder.Bitrate = 96000;
 
                 OpusTags tags = new OpusTags();
@@ -38,17 +40,35 @@ namespace OggTest
             {
                 using (FileStream fileOut = new FileStream(rawFile2, FileMode.Create))
                 {
-                    OpusDecoder decoder = OpusDecoder.Create(48000, 2);
+                    OpusDecoder decoder = new OpusDecoder(8000, 2);
                     OpusOggReadStream oggIn = new OpusOggReadStream(decoder, fileIn);
+
+                    var wavfile = new WAVFile();
+                    wavfile.Create(rawFile2Wav, false, 8000, 16);
+
                     while (oggIn.HasNextPacket)
                     {
                         short[] packet = oggIn.DecodeNextPacket();
                         if (packet != null)
                         {
                             byte[] binary = ShortsToBytes(packet);
+
+                            // to raw
                             fileOut.Write(binary, 0, binary.Length);
+
+                            // to wav
+                            packet.Where(_=>_%6==0)48 // 48 = 6
+                                .ToList().ForEach(_=>wavfile.AddSample_16bit(_));
+                            // or old way:
+                            //for (int c = 0; c < packet.Length; c += 6) // 48/8=6
+                            //{
+                            //    var g1 = (byte)(packet[c] & 0xFF);
+                            //    var g2 = (byte)((packet[c] >> 8) & 0xFF);
+                            //    f.AddSample_ByteArray(new[] { g1, g2 });
+                            //}
                         }
                     }
+                    wavfile.Close();
                 }
             }
         }
