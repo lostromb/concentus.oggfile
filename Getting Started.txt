@@ -4,13 +4,13 @@ TO ENCODE:
 
 using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
 {
-    OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+    OpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
     encoder.Bitrate = 96000;
 
     OpusTags tags = new OpusTags();
     tags.Fields[OpusTagName.Title] = "Song Title";
     tags.Fields[OpusTagName.Artist] = "Artist";
-    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags, 44100); // instead of 44100 pass the actual input sample rate of your audio here
+    OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags, inputSampleRate: 44100); // instead of 44100 pass the actual input sample rate of your audio here
 
 	while (HasMoreAudio())
 	{
@@ -25,7 +25,7 @@ TO DECODE:
 
 using (FileStream fileIn = new FileStream(opusfile, FileMode.Open))
 {
-    OpusDecoder decoder = OpusDecoder.Create(48000, 2);
+    OpusDecoder decoder = OpusCodecFactory.CreateDecoder(48000, 2);
 	OpusOggReadStream oggIn = new OpusOggReadStream(decoder, fileIn);
     while (oggIn.HasNextPacket)
     {
