@@ -1,10 +1,13 @@
-﻿using Concentus.Enums;
+﻿using Concentus;
+using Concentus.Enums;
 using Concentus.Oggfile;
 using Concentus.Structs;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,18 +17,18 @@ namespace OggTest
     {
         public static void Main(string[] args)
         {
-            string opusfile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.opus";
-            string rawFile = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol.raw";
-            string rawFile2 = @"C:\Users\Logan Stromberg\Desktop\Prisencolinensinainciusol_out.raw";
+            string opusfile = @"C:\Code\concentus.oggfile\Warning call.opus";
+            string rawFile = @"C:\Code\concentus.oggfile\Warning call.raw";
+            string rawFile2 = @"C:\Code\concentus.oggfile\Warning call_out.raw";
             using (FileStream fileOut = new FileStream(opusfile, FileMode.Create))
             {
-                OpusEncoder encoder = OpusEncoder.Create(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO);
+                IOpusEncoder encoder = OpusCodecFactory.CreateEncoder(48000, 2, OpusApplication.OPUS_APPLICATION_AUDIO, Console.Out);
                 encoder.Bitrate = 96000;
 
                 OpusTags tags = new OpusTags();
-                tags.Fields[OpusTagName.Title] = "Prisencolinensinainciusol";
-                tags.Fields[OpusTagName.Artist] = "Adriano Celetano";
-                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags);
+                tags.Fields[OpusTagName.Title] = "Warning Call";
+                tags.Fields[OpusTagName.Artist] = "CHVRCHES";
+                OpusOggWriteStream oggOut = new OpusOggWriteStream(encoder, fileOut, tags, inputSampleRate: 44100);
 
                 byte[] allInput = File.ReadAllBytes(rawFile);
                 short[] samples = BytesToShorts(allInput);
@@ -38,7 +41,7 @@ namespace OggTest
             {
                 using (FileStream fileOut = new FileStream(rawFile2, FileMode.Create))
                 {
-                    OpusDecoder decoder = OpusDecoder.Create(48000, 2);
+                    IOpusDecoder decoder = OpusCodecFactory.CreateDecoder(16000, 2, Console.Out);
                     OpusOggReadStream oggIn = new OpusOggReadStream(decoder, fileIn);
                     while (oggIn.HasNextPacket)
                     {

@@ -163,8 +163,15 @@ namespace Concentus.Oggfile
                     // this is the base offset + discard bytes + buffer max length (though technically we could go a little further...)
                     return _baseOffset + _discardCount + _maxSize;
                 }
-                // if there aren't any bytes in the buffer, we can seek wherever we want
-                return _wrapper.Source.Length;
+
+                if (_wrapper.Source.CanSeek)
+                {
+                    // if there aren't any bytes in the buffer, we can seek wherever we want
+                    return _wrapper.Source.Length;
+                }
+
+                // If we can't seek the base stream, we're limited to only this local buffer
+                return _baseOffset + Length;
             }
         }
 

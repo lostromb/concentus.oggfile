@@ -1,13 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard1.0;net4.5</TargetFrameworks>
+    <TargetFrameworks>net452;netstandard1.1;netstandard2.0;net8.0</TargetFrameworks>
     <Id>Concentus.OggFile</Id>
-    <Version>1.0.4.0</Version>
+    <Version>1.0.5.0</Version>
     <Title>Concentus.OggFile</Title>
     <Authors>Logan Stromberg</Authors>
     <Owners>Logan Stromberg</Owners>
     <Summary>OggOpus file handlers utilizing the Concentus codec</Summary>
-    <Description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally. The Concentus library is used to encode/decode the opus packets automatically, with no C++ interop required.</Description>
+    <Description>This package implements file streams which can be used to extract or encode Opus packets in an Ogg-formatted audio file (usually .opus), giving developers a very simple API to perform the task of reading or writing audio files that can be played universally. The Concentus library is used to encode/decode the opus packets automatically. The codec can optionally be accelerated by also referencing the Concentus.Native package.</Description>
     <ReleaseNotes>Proper netstandard support</ReleaseNotes>
     <ProjectUrl>https://github.com/lostromb/concentus.oggfile</ProjectUrl>
     <LicenseUrl>https://opensource.org/licenses/MS-PL</LicenseUrl>
@@ -17,10 +17,20 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageProjectUrl>https://github.com/lostromb/concentus.oggfile</PackageProjectUrl>
     <PackageIconUrl>http://durandal.dnsalias.net/imgur/concentus.png</PackageIconUrl>
-    <PackageReleaseNotes>1.0.4 Adding basic support for seeking within a stream</PackageReleaseNotes>
+    <PackageReleaseNotes>1.0.5 Update to latest Concentus dependency to allow native codec implementations if desired (see the release notes for Concentus.Native)</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/lostromb/concentus.oggfile</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MS-PL</PackageLicenseExpression>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="..\icon.png">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Concentus" Version="1.1.7" />
+    <PackageReference Include="Concentus" Version="2.2.1" />
   </ItemGroup>
 </Project>

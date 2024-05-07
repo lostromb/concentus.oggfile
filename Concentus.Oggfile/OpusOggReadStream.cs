@@ -13,7 +13,7 @@ namespace Concentus.Oggfile
     {
         private const double GranuleSampleRate = 48000.0; // Granule position is always expressed in units of 48000hz
         private readonly Stream _stream;
-        private readonly OpusDecoder _decoder;
+        private readonly IOpusDecoder _decoder;
 
         private byte[] _nextDataPacket;
         private IPacketProvider _packetProvider;
@@ -27,13 +27,8 @@ namespace Concentus.Oggfile
         /// <param name="decoder">An Opus decoder. If you are reusing an existing decoder, remember to call Reset() on it before
         /// processing a new stream. The decoder is optional for cases where you may only be interested in the file tags</param>
         /// <param name="stream">The input stream for an Ogg formatted .opus file. The stream will be read from immediately</param>
-        public OpusOggReadStream(OpusDecoder decoder, Stream stream)
+        public OpusOggReadStream(IOpusDecoder decoder, Stream stream)
         {
-            if (decoder == null)
-            {
-                throw new ArgumentNullException(nameof(decoder));
-
-            }
             if (stream == null)
             {
                 throw new ArgumentNullException(nameof(stream));
@@ -74,7 +69,7 @@ namespace Concentus.Oggfile
         /// <summary>
         /// Gets the current time in the stream.
         /// </summary>
-        public TimeSpan CurrentTime => TimeSpan.FromSeconds(PageGranulePosition / GranuleSampleRate);
+        public TimeSpan CurrentTime => TimeSpan.FromSeconds((double)PageGranulePosition / GranuleSampleRate);
 
         /// <summary>
         /// Gets the total number of granules in this stream.
@@ -117,9 +112,9 @@ namespace Concentus.Oggfile
 
             try
             {
-                int numSamples = OpusPacketInfo.GetNumSamples(_nextDataPacket, 0, _nextDataPacket.Length, _decoder.SampleRate);
+                int numSamples = OpusPacketInfo.GetNumSamples(_nextDataPacket.AsSpan(), _decoder.SampleRate);
                 short[] output = new short[numSamples * _decoder.NumChannels];
-                _decoder.Decode(_nextDataPacket, 0, _nextDataPacket.Length, output, 0, numSamples, false);
+                _decoder.Decode(_nextDataPacket.AsSpan(), output.AsSpan(), numSamples, false);
 
                 QueueNextPacket();
 
@@ -130,6 +125,24 @@ namespace Concentus.Oggfile
                 LastError = "Opus decoder threw exception: " + e.Message;
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Reads the next raw Opus packet from the stream.
+        /// If there are no more packets to decode, this returns NULL.
+        /// </summary>
+        /// <returns>The next packet in the stream, or NULL</returns>
+        public byte[] ReadNextRawPacket()
+        {
+            if (_nextDataPacket == null || _nextDataPacket.Length == 0)
+            {
+                _endOfStream = true;
+                return null;
+            }
+
+            byte[] returnVal = _nextDataPacket;
+            QueueNextPacket();
+            return returnVal;
         }
 
         /// <summary>
@@ -228,7 +241,10 @@ namespace Concentus.Oggfile
             PageGranulePosition = _packetProvider.PeekNextPacket().PageGranulePosition;
 
             // Reset the state from the decoder to start processing a fresh stream
-            _decoder.ResetState();
+            if (_decoder != null)
+            {
+                _decoder.ResetState();
+            }
         }
 
         private int GetPacketLength(DataPacket curPacket, DataPacket lastPacket)
