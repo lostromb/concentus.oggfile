@@ -15,6 +15,7 @@ namespace Concentus.Oggfile
         private Stream _outputStream;
         private Crc _crc;
         private int _inputChannels;
+        private readonly bool _leaveOpen;
         private int _inputSampleRate;
 
         // Ogg page parameters
@@ -32,11 +33,12 @@ namespace Concentus.Oggfile
         private const int SEGMENT_COUNT_POS = 26;
         private bool _finalized = false;
 
-        public OpusRawWriteStream(Stream outputStream, OpusTags fileTags, int inputSampleRate, int inputNumChannels)
+        public OpusRawWriteStream(Stream outputStream, OpusTags fileTags, int inputSampleRate, int inputNumChannels, bool leaveOpen = false)
         {
             _inputSampleRate = inputSampleRate;
             _logicalStreamId = new Random().Next();
             _inputChannels = inputNumChannels;
+            _leaveOpen = leaveOpen;
             _outputStream = outputStream;
             _granulePosition = 0;
             _crc = new Crc();
@@ -99,7 +101,8 @@ namespace Concentus.Oggfile
 
             // Now close our output
             _outputStream.Flush();
-            _outputStream.Dispose();
+            if (!_leaveOpen)
+                _outputStream.Dispose();
             _finalized = true;
         }
 
