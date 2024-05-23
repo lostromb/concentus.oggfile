@@ -65,8 +65,8 @@ namespace Concentus.Oggfile
         /// and the write stream will perform resampling for you automatically (Note that resampling will slow down
         /// the encoding).</param>
         /// <param name="resamplerQuality">An optional resampler quality to use, from 0 to 10.</param>
-        public OpusOggWriteStream(IOpusEncoder encoder, Stream outputStream, OpusTags fileTags = null,
-            int inputSampleRate = 0, int resamplerQuality = 5, bool leaveOpen = false)
+        /// <param name="leaveOpen">Whether to leave the stream open after a call to <see cref="Finish"/></param>
+        public OpusOggWriteStream(IOpusEncoder encoder, Stream outputStream, OpusTags fileTags = null, int inputSampleRate = 0, int resamplerQuality = 5, bool leaveOpen = false)
         {
             _encoder = encoder;
 
@@ -91,7 +91,8 @@ namespace Concentus.Oggfile
             _opusFrameSamples = (int)((long)_encoderSampleRate * FRAME_SIZE_MS / 1000);
             _opusFrame = new short[_opusFrameSamples * _inputChannels];
             _crc = new Crc();
-            _resampler = ResamplerFactory.CreateResampler(_inputChannels, _inputSampleRate, _encoderSampleRate, resamplerQuality);
+            _resampler = ResamplerFactory.CreateResampler(_inputChannels, _inputSampleRate, _encoderSampleRate,
+                resamplerQuality);
 
             BeginNewPage();
             WriteOpusHeadPage();
@@ -134,14 +135,16 @@ namespace Concentus.Oggfile
                     // divide by channel count because these numbers are in samples-per-channel
                     int in_len = (count - inputCursor) / _inputChannels;
                     int out_len = amountToWrite / _inputChannels;
-                    _resampler.ProcessInterleaved(data.AsSpan(offset + inputCursor), ref in_len, _opusFrame.AsSpan(_opusFrameIndex), ref out_len);
+                    _resampler.ProcessInterleaved(data.AsSpan(offset + inputCursor), ref in_len,
+                        _opusFrame.AsSpan(_opusFrameIndex), ref out_len);
                     inputCursor += in_len * _inputChannels;
                     _opusFrameIndex += out_len * _inputChannels;
                 }
                 else
                 {
                     // If no resampling, we can do a straight memcpy instead
-                    data.AsSpan(offset + inputCursor, amountToWrite).CopyTo(_opusFrame.AsSpan(_opusFrameIndex, amountToWrite));
+                    data.AsSpan(offset + inputCursor, amountToWrite)
+                        .CopyTo(_opusFrame.AsSpan(_opusFrameIndex, amountToWrite));
                     _opusFrameIndex += amountToWrite;
                     inputCursor += amountToWrite;
                 }
@@ -149,7 +152,8 @@ namespace Concentus.Oggfile
                 if (_opusFrameIndex == _opusFrame.Length)
                 {
                     // Frame is finished. Encode it
-                    int packetSize = _encoder.Encode(_opusFrame.AsSpan(), _opusFrameSamples, _currentPayload.AsSpan(_payloadIndex), _currentPayload.Length - _payloadIndex);
+                    int packetSize = _encoder.Encode(_opusFrame.AsSpan(), _opusFrameSamples,
+                        _currentPayload.AsSpan(_payloadIndex), _currentPayload.Length - _payloadIndex);
                     _payloadIndex += packetSize;
 
                     // Opus granules are measured in 48Khz samples. 
@@ -164,6 +168,7 @@ namespace Concentus.Oggfile
                         _currentHeader[_headerIndex++] = 0xFF;
                         _lacingTableCount++;
                     }
+
                     _currentHeader[_headerIndex++] = (byte)segmentLength;
                     _lacingTableCount++;
 
@@ -194,7 +199,8 @@ namespace Concentus.Oggfile
         {
             if (_finalized)
             {
-                throw new InvalidOperationException("Cannot write new samples to Ogg file, the output stream is already closed!");
+                throw new InvalidOperationException(
+                    "Cannot write new samples to Ogg file, the output stream is already closed!");
             }
 
             // Convert float samples to PCM16
@@ -258,12 +264,14 @@ namespace Concentus.Oggfile
             _currentPayload[_payloadIndex++] = (byte)_inputChannels; // Channel count
             short preskip = 0;
             _payloadIndex += WriteValueToByteBuffer(preskip, _currentPayload, _payloadIndex); // Pre-skip.
-            _payloadIndex += WriteValueToByteBuffer(_encoderSampleRate, _currentPayload, _payloadIndex); //Input sample rate
+            _payloadIndex +=
+                WriteValueToByteBuffer(_encoderSampleRate, _currentPayload, _payloadIndex); //Input sample rate
             short outputGain = 0;
             _payloadIndex += WriteValueToByteBuffer(outputGain, _currentPayload, _payloadIndex); // Output gain in Q8
             _currentPayload[_payloadIndex++] = 0x00; // Channel map (0 indicates mono/stereo config)
             // Write the payload as segment data
-            _currentHeader[_headerIndex++] = (byte)_payloadIndex; // implicit assumption that this value will always be less than 255
+            _currentHeader[_headerIndex++] =
+                (byte)_payloadIndex; // implicit assumption that this value will always be less than 255
             _lacingTableCount++;
             // Set page flag to start of logical stream
             _currentHeader[PAGE_FLAGS_POS] = (byte)PageFlags.BeginningOfStream;
@@ -293,7 +301,7 @@ namespace Concentus.Oggfile
 
             // BUGBUG: Very long tags can overflow the page and corrupt the stream
             _payloadIndex += WriteValueToByteBuffer("OpusTags", _currentPayload, _payloadIndex);
-            
+
             // write comment
             int stringLength = WriteValueToByteBuffer(tags.Comment, _currentPayload, _payloadIndex + 4);
             _payloadIndex += WriteValueToByteBuffer(stringLength, _currentPayload, _payloadIndex);
@@ -328,6 +336,7 @@ namespace Concentus.Oggfile
                 _lacingTableCount++;
                 tagsSegmentSize -= 255;
             }
+
             _currentHeader[_headerIndex++] = (byte)tagsSegmentSize;
             _lacingTableCount++;
 
@@ -389,10 +398,12 @@ namespace Concentus.Oggfile
                 {
                     _crc.Update(_currentHeader[c]);
                 }
+
                 for (int c = 0; c < _payloadIndex; c++)
                 {
                     _crc.Update(_currentPayload[c]);
                 }
+
                 //Debug.WriteLine("Writing CRC " + _crc.Value);
                 WriteValueToByteBuffer(_crc.Value, _currentHeader, CHECKSUM_HEADER_POS);
                 // Write the page to the stream (TODO: Make sure this operation does not overflow any target stream buffers?)
