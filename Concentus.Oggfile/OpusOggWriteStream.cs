@@ -29,6 +29,7 @@ namespace Concentus.Oggfile
         // Resampler parameters
         private IResampler _resampler;
         private int _inputSampleRate;
+        private readonly bool _leaveOpen;
         private int _encoderSampleRate;
 
         // Ogg page parameters
@@ -64,7 +65,8 @@ namespace Concentus.Oggfile
         /// and the write stream will perform resampling for you automatically (Note that resampling will slow down
         /// the encoding).</param>
         /// <param name="resamplerQuality">An optional resampler quality to use, from 0 to 10.</param>
-        public OpusOggWriteStream(IOpusEncoder encoder, Stream outputStream, OpusTags fileTags = null, int inputSampleRate = 0, int resamplerQuality = 5)
+        public OpusOggWriteStream(IOpusEncoder encoder, Stream outputStream, OpusTags fileTags = null,
+            int inputSampleRate = 0, int resamplerQuality = 5, bool leaveOpen = false)
         {
             _encoder = encoder;
 
@@ -74,6 +76,7 @@ namespace Concentus.Oggfile
             }
 
             _inputSampleRate = inputSampleRate;
+            _leaveOpen = leaveOpen;
             if (_inputSampleRate == 0)
             {
                 _inputSampleRate = _encoder.SampleRate;
@@ -106,13 +109,15 @@ namespace Concentus.Oggfile
         {
             if (_finalized)
             {
-                throw new InvalidOperationException("Cannot write new samples to Ogg file, the output stream is already closed!");
+                throw new InvalidOperationException(
+                    "Cannot write new samples to Ogg file, the output stream is already closed!");
             }
 
             if ((data.Length - offset) < count)
             {
                 // Check that caller isn't lying about its buffer sizes
-                throw new ArgumentOutOfRangeException("The given audio buffer claims to have " + count + " samples, but it actually only has " + (data.Length - offset));
+                throw new ArgumentOutOfRangeException("The given audio buffer claims to have " + count +
+                                                      " samples, but it actually only has " + (data.Length - offset));
             }
 
             // Try and fill the opus frame
@@ -219,7 +224,8 @@ namespace Concentus.Oggfile
 
             // Now close our output
             _outputStream.Flush();
-            _outputStream.Dispose();
+            if (!_leaveOpen)
+                _outputStream.Dispose();
             _finalized = true;
         }
 
