@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#pragma warning disable 0169
+
 namespace Concentus.Oggfile
 {
     internal class OpusHeader
@@ -18,3 +20,5 @@ namespace Concentus.Oggfile
         byte coupled_count;
     }
 }
+
+#pragma warning restore 0169
