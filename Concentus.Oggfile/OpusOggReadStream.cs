@@ -19,6 +19,8 @@ namespace Concentus.Oggfile
         private IPacketProvider _packetProvider;
         private bool _endOfStream;
 
+        private OggContainerReader _containerReader;
+
         /// <summary>
         /// Builds an Ogg file reader that decodes Opus packets from the given input stream, using a 
         /// specified output sample rate and channel count. The given decoder will be used as-is
@@ -158,14 +160,18 @@ namespace Concentus.Oggfile
                 if (!oggContainerReader.Init())
                 {
                     LastError = "Could not initialize stream";
+                    oggContainerReader.Dispose();
                     return false;
                 }
 
                 if (oggContainerReader.StreamSerials.Length == 0)
                 {
                     LastError = "Initialization failed: No elementary streams found in input file";
+                    oggContainerReader.Dispose();
                     return false;
                 }
+
+                _containerReader = oggContainerReader;
 
                 int firstStreamSerial = oggContainerReader.StreamSerials[0];
                 _packetProvider = oggContainerReader.GetStream(firstStreamSerial);
@@ -308,6 +314,11 @@ namespace Concentus.Oggfile
             {
                 _nextDataPacket = buf;
             }
+        }
+
+        public void Close()
+        {
+            _containerReader?.Dispose();
         }
     }
 }
