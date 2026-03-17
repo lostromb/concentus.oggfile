@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<TargetFrameworks>net452;netstandard1.1;netstandard2.0;net8.0</TargetFrameworks>
 		<Id>Concentus.OggFile</Id>
-		<Version>1.0.6.0</Version>
+		<Version>1.0.7.0</Version>
 		<Title>Concentus.OggFile</Title>
 		<Authors>Logan Stromberg</Authors>
 		<Owners>Logan Stromberg</Owners>
@@ -17,10 +17,10 @@
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageProjectUrl>https://github.com/lostromb/concentus.oggfile</PackageProjectUrl>
 		<PackageIconUrl>http://durandal.dnsalias.net/imgur/concentus.png</PackageIconUrl>
-		<PackageReleaseNotes>1.0.5 Update to latest Concentus dependency to allow native codec implementations if desired (see the release notes for Concentus.Native)</PackageReleaseNotes>
+		<PackageReleaseNotes>1.0.7 Allow configurable buffering latency in Ogg write streams for users wanting to stream closer to real-time </PackageReleaseNotes>
 		<RepositoryUrl>https://github.com/lostromb/concentus.oggfile</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageLicenseExpression>MS-PL</PackageLicenseExpression>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageIcon>icon.png</PackageIcon>
 	</PropertyGroup>
 	<ItemGroup>
