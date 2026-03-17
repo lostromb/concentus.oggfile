@@ -1,4 +1,4 @@
-﻿using Concentus.Common;
+using Concentus.Common;
 using Concentus.Structs;
 using System;
 using System.Collections.Generic;
@@ -318,3 +318,4 @@ namespace Concentus.Oggfile
         }
     }
 }
+
