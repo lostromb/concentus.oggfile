@@ -1,4 +1,4 @@
-﻿using Concentus.Common;
+using Concentus.Common;
 using Concentus.Structs;
 using System;
 using System.Collections.Generic;
@@ -20,6 +20,7 @@ namespace Concentus.Oggfile
     public class OpusOggWriteStream
     {
         private const int FRAME_SIZE_MS = 20;
+        private const byte EARLY_FINALIZE_SEGMENT_LIMIT = 248;
 
         private IOpusEncoder _encoder;
         private Stream _outputStream;
@@ -43,7 +44,9 @@ namespace Concentus.Oggfile
         private int _pageCounter = 0;
         private int _logicalStreamId = 0;
         private long _granulePosition = 0;
+        private byte _packetsInPage = 0;
         private byte _lacingTableCount = 0;
+        private byte _maxPacketsPerPage = EARLY_FINALIZE_SEGMENT_LIMIT;
         private const int PAGE_FLAGS_POS = 5;
         private const int GRANULE_COUNT_POS = 6;
         private const int CHECKSUM_HEADER_POS = 22;
@@ -97,6 +100,31 @@ namespace Concentus.Oggfile
             BeginNewPage();
             WriteOpusHeadPage();
             WriteOpusTagsPage(fileTags);
+        }
+
+        /// <summary>
+        /// Gets or sets the maximum amount of encoded audio to store in a single Ogg page.
+        /// This stream encodes fixed 20ms Opus frames, so this option allows more
+        /// frequent page breaks to reduce streaming delay at the cost of larger Ogg overhead.
+        /// Pages are still finalized earlier if the Ogg lacing table is nearly full.
+        /// </summary>
+        public TimeSpan MaxAudioLengthPerPage
+        {
+            get
+            {
+                return TimeSpan.FromMilliseconds(FRAME_SIZE_MS * _maxPacketsPerPage);
+            }
+            set
+            {
+                if (value <= TimeSpan.Zero)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(MaxAudioLengthPerPage));
+                }
+
+                _maxPacketsPerPage = (byte)Math.Min(
+                    EARLY_FINALIZE_SEGMENT_LIMIT,
+                    Math.Max(1, (int)(value.TotalMilliseconds / FRAME_SIZE_MS)));
+            }
         }
 
         /// <summary>
@@ -171,11 +199,12 @@ namespace Concentus.Oggfile
 
                     _currentHeader[_headerIndex++] = (byte)segmentLength;
                     _lacingTableCount++;
+                    _packetsInPage++;
 
-                    // And finalize the page if we need
-                    // 284 is a magic number meaning "our page is almost full so just finalize it"
+                    // Finalize early either because we hit the configured audio-per-page limit
+                    // or because the Ogg lacing table is almost full.
                     // A more proper implementation would have the packets span to the next page, but meh
-                    if (_lacingTableCount > 248)
+                    if (_packetsInPage >= _maxPacketsPerPage || _lacingTableCount > EARLY_FINALIZE_SEGMENT_LIMIT)
                     {
                         FinalizePage();
                     }
@@ -350,6 +379,7 @@ namespace Concentus.Oggfile
         {
             _headerIndex = 0;
             _payloadIndex = 0;
+            _packetsInPage = 0;
             _lacingTableCount = 0;
 
             // Page begin keyword
